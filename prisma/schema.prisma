@@ -1,0 +1,178 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                    String                 @id @default(uuid())
+  firstName             String
+  lastName              String
+  email                 String                 @unique
+  passwordHash          String
+  isGlobalAdmin         Boolean                @default(false)
+  isActive              Boolean                @default(true)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  userSectorMemberships UserSectorMembership[]
+  createdRequests       Request[]              @relation("CreatedByUser")
+  assignedRequests      Request[]              @relation("AssignedToUser")
+  RequestMessage        RequestMessage[]
+  RequestHistory        RequestHistory[]
+
+  @@map("users")
+}
+
+model Sector {
+  id                    String                 @id @default(uuid())
+  name                  String                 @unique
+  active                Boolean                @default(true)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  userSectorMemberships UserSectorMembership[]
+  SectorService         SectorService[]
+  Request               Request[]
+
+  @@map("sectors")
+}
+
+model SectorService {
+  id        String   @id @default(uuid())
+  name      String
+  active    Boolean  @default(true)
+  sectorId  String   @map("sector_id")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  Sector  Sector    @relation(fields: [sectorId], references: [id])
+  Request Request[]
+
+  @@map("sector_services")
+}
+
+model UserSectorMembership {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  sectorId  String   @map("sector_id")
+  roleId    String   @map("role_id")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  User   User   @relation(fields: [userId], references: [id])
+  Sector Sector @relation(fields: [sectorId], references: [id])
+  Role   Role   @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, sectorId])
+  @@map("user_sector_memberships")
+}
+
+model Role {
+  id                   String                 @id @default(uuid())
+  name                 String                 @unique
+  description          String
+  slug                 RoleSlug               @unique
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  UserSectorMembership UserSectorMembership[]
+
+  @@map("roles")
+}
+
+model Request {
+  id              String          @id @default(uuid())
+  title           String
+  description     String
+  status          RequestStatus   @default(NEW)
+  priority        RequestPriority @default(MEDIUM)
+  sectorId        String          @map("sector_id")
+  sectorServiceId String          @map("sector_service_id")
+  createdById     String          @map("created_by_id")
+  assignedToId    String?         @map("assigned_to_id")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  sector        Sector           @relation(fields: [sectorId], references: [id])
+  sectorService SectorService    @relation(fields: [sectorServiceId], references: [id])
+  createdBy     User             @relation("CreatedByUser", fields: [createdById], references: [id], onDelete: Restrict)
+  assignedTo    User?            @relation("AssignedToUser", fields: [assignedToId], references: [id], onDelete: SetNull)
+  messages      RequestMessage[]
+  history       RequestHistory[]
+
+  @@index([sectorId, status])
+  @@index([createdById])
+  @@index([assignedToId])
+  @@map("requests")
+}
+
+model RequestMessage {
+  id        String   @id @default(uuid())
+  requestId String   @map("request_id")
+  authorId  String   @map("author_id")
+  content   String
+  createdAt DateTime @default(now())
+
+  Request Request @relation(fields: [requestId], references: [id])
+  User    User    @relation(fields: [authorId], references: [id])
+
+  @@map("request_messages")
+}
+
+model RequestHistory {
+  id         String               @id @default(uuid())
+  requestId  String               @map("request_id")
+  userId     String               @map("user_id")
+  action     RequestHistoryAction
+  fromStatus RequestStatus?
+  toStatus   RequestStatus?
+  metadata   Json?
+  createdAt  DateTime             @default(now())
+
+  Request Request @relation(fields: [requestId], references: [id])
+  User    User    @relation(fields: [userId], references: [id])
+
+  @@map("request_histories")
+}
+
+enum RoleSlug {
+  MANAGER
+  TECHNICIAN
+}
+
+enum RequestStatus {
+  NEW
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  ARCHIVED
+}
+
+enum RequestPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// pensar melhor sobre.
+enum RequestHistoryAction {
+  CREATED
+  UPDATED
+  ASSIGNED
+  REASSIGNED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  MESSAGE_SENT
+  CANCELLED
+  ARCHIVED
+}
