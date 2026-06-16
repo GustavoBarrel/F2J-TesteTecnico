@@ -2,6 +2,9 @@ import 'dotenv/config';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient, RoleSlug } from '../generated/prisma/client.js';
+import * as bcrypt from 'bcrypt';
+
+const SALT_ROUNDS = 10;
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
@@ -20,6 +23,14 @@ const DEFAULT_ROLES = [
   },
 ] as const;
 
+const DEFAULT_ADMIN = {
+  email: 'admin@servicehub.com',
+  password: 'admin123',
+  username: 'admin',
+  firstName: 'Admin',
+  lastName: 'Sistema',
+} as const;
+
 async function main() {
   for (const role of DEFAULT_ROLES) {
     await prisma.role.upsert({
@@ -32,9 +43,32 @@ async function main() {
     });
   }
 
+  const passwordHash = await bcrypt.hash(DEFAULT_ADMIN.password, SALT_ROUNDS);
+
+  await prisma.user.upsert({
+    where: { email: DEFAULT_ADMIN.email },
+    update: {
+      username: DEFAULT_ADMIN.username,
+      firstName: DEFAULT_ADMIN.firstName,
+      lastName: DEFAULT_ADMIN.lastName,
+      isGlobalAdmin: true,
+      isActive: true,
+    },
+    create: {
+      email: DEFAULT_ADMIN.email,
+      password: passwordHash,
+      username: DEFAULT_ADMIN.username,
+      firstName: DEFAULT_ADMIN.firstName,
+      lastName: DEFAULT_ADMIN.lastName,
+      isGlobalAdmin: true,
+      isActive: true,
+    },
+  });
+
   console.log(
-    'Roles padrão criadas:',
-    DEFAULT_ROLES.map((r) => r.slug).join(', '),
+    'Seed concluído:',
+    `roles (${DEFAULT_ROLES.map((r) => r.slug).join(', ')})`,
+    `admin (${DEFAULT_ADMIN.email} / ${DEFAULT_ADMIN.password})`,
   );
 }
 

@@ -18,7 +18,8 @@ model User {
   firstName             String
   lastName              String
   email                 String                 @unique
-  passwordHash          String
+  username              String                 @unique
+  password              String
   isGlobalAdmin         Boolean                @default(false)
   isActive              Boolean                @default(true)
   createdAt             DateTime               @default(now())
@@ -164,7 +165,6 @@ enum RequestPriority {
   URGENT
 }
 
-// pensar melhor sobre.
 enum RequestHistoryAction {
   CREATED
   UPDATED

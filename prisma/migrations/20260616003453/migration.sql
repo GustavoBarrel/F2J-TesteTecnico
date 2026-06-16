@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "RoleSlug" ADD VALUE 'SUPER_ADMIN';
