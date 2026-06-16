@@ -1,5 +1,4 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -7,7 +6,6 @@ import { PrismaService } from 'src/prisma/prisma.service';
 @Injectable()
 export class AuthService {
   constructor(
-    private usersService: UsersService,
     private jwtService: JwtService,
     private prisma: PrismaService,
   ) {}
@@ -16,21 +14,20 @@ export class AuthService {
     username: string,
     password: string,
   ): Promise<{ access_token: string }> {
-    const user = await this.usersService.findByUsername(username);
+    const user = await this.prisma.user.findUnique({
+      where: {
+        username,
+      },
+    });
+
     if (!user || !user.isActive) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException('Usuário ou senha inválidos');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
-
     if (!isPasswordValid) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException('Usuário ou senha inválidos');
     }
-    const teste = await this.prisma.user.findUnique({
-      where: {
-        id: user.id,
-      },
-    });
     const payload = {
       sub: user.id,
       email: user.email,

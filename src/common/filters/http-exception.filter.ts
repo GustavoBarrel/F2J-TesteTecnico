@@ -19,14 +19,25 @@ export class HttpExceptionFilter implements ExceptionFilter {
       typeof exceptionResponse === 'string'
         ? {
             statusCode: status,
-            error: HttpStatus[status] ?? 'Error',
+            error: this.formatError(status),
             message: exceptionResponse,
           }
         : {
             statusCode: status,
+            error: this.formatError(status),
             ...(exceptionResponse as Record<string, unknown>),
           };
 
     response.status(status).json(body);
+  }
+
+  private formatError(status: number): string {
+    const error = HttpStatus[status] ?? 'Error';
+
+    return error
+      .toLowerCase()
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   }
 }

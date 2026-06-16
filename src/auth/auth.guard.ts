@@ -1,4 +1,3 @@
-
 import {
   CanActivate,
   ExecutionContext,
@@ -7,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { Request } from 'express';
+import { Request as ExpressRequest } from 'express';
 import { IS_PUBLIC_KEY } from './decorators/public.decorator';
 
 @Injectable()
@@ -26,27 +25,25 @@ export class AuthGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest();
-      const token = this.extractTokenFromHeader(request);
-      if (!token) {
-        throw new UnauthorizedException();
-      }
-      try {
-        // 💡 Here the JWT secret key that's used for verifying the payload 
-        // is the key that was passed in the JwtModule
-        const payload = await this.jwtService.verifyAsync(token);
-        // 💡 We're assigning the payload to the request object here
-        // so that we can access it in our route handlers
-        request['user'] = payload;
-      } catch {
-        throw new UnauthorizedException();
-      }
-      return true;
+    const request = context.switchToHttp().getRequest<Request>();
+    const token = this.extractTokenFromHeader(
+      request as unknown as ExpressRequest,
+    );
+    if (!token) {
+      throw new UnauthorizedException();
     }
-  
-    private extractTokenFromHeader(request: Request): string | undefined {
-      const [type, token] = request.headers.authorization?.split(' ') ?? [];
-      return type === 'Bearer' ? token : undefined;
+    try {
+      const payload =
+        await this.jwtService.verifyAsync<Record<string, unknown>>(token);
+      (request as unknown as Record<string, unknown>)['user'] = payload;
+    } catch {
+      throw new UnauthorizedException();
     }
+    return true;
   }
-  
+
+  private extractTokenFromHeader(request: ExpressRequest): string | undefined {
+    const [type, token] = request.headers.authorization?.split(' ') ?? [];
+    return type === 'Bearer' ? token : undefined;
+  }
+}
