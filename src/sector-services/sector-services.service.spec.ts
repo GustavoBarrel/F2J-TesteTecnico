@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { SectorservicesService } from './sectorservices.service';
+import { SectorservicesService } from './sector-services.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { SectorsService } from 'src/sectors/sectors.service';
 import { NotFoundException } from '@nestjs/common';
@@ -103,9 +103,13 @@ describe('SectorservicesService', () => {
     });
 
     it('deve lançar NotFoundException se setor não existe', async () => {
-      mockSectorsService.findOne.mockRejectedValue(new NotFoundException('Setor não encontrado'));
+      mockSectorsService.findOne.mockRejectedValue(
+        new NotFoundException('Setor não encontrado'),
+      );
 
-      await expect(service.create('setor-inexistente', createDto)).rejects.toThrow(NotFoundException);
+      await expect(
+        service.create('setor-inexistente', createDto),
+      ).rejects.toThrow(NotFoundException);
       expect(mockPrisma.sectorService.create).not.toHaveBeenCalled();
     });
 
@@ -125,7 +129,10 @@ describe('SectorservicesService', () => {
       mockSectorsService.findOne.mockResolvedValue(baseSector);
       mockPrisma.sectorService.create.mockResolvedValue(inactiveService);
 
-      const result = await service.create(sectorId, { ...createDto, active: false });
+      const result = await service.create(sectorId, {
+        ...createDto,
+        active: false,
+      });
 
       expect(result.active).toBe(false);
     });
@@ -237,7 +244,10 @@ describe('SectorservicesService', () => {
       mockPrisma.sectorService.findMany.mockResolvedValue([]);
       mockPrisma.sectorService.count.mockResolvedValue(0);
 
-      await service.findAll(sectorId, { ...defaultQuery, search: 'Instalação' });
+      await service.findAll(sectorId, {
+        ...defaultQuery,
+        search: 'Instalação',
+      });
 
       expect(mockPrisma.sectorService.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -249,9 +259,13 @@ describe('SectorservicesService', () => {
     });
 
     it('deve lançar NotFoundException se setor não existe', async () => {
-      mockSectorsService.findOne.mockRejectedValue(new NotFoundException('Setor não encontrado'));
+      mockSectorsService.findOne.mockRejectedValue(
+        new NotFoundException('Setor não encontrado'),
+      );
 
-      await expect(service.findAll('setor-inexistente', defaultQuery)).rejects.toThrow(NotFoundException);
+      await expect(
+        service.findAll('setor-inexistente', defaultQuery),
+      ).rejects.toThrow(NotFoundException);
       expect(mockPrisma.sectorService.findMany).not.toHaveBeenCalled();
     });
 
@@ -295,14 +309,22 @@ describe('SectorservicesService', () => {
       mockSectorsService.findOne.mockResolvedValue(baseSector);
       mockPrisma.sectorService.findFirst.mockResolvedValue(null);
 
-      await expect(service.findOne('id-inexistente', sectorId)).rejects.toThrow(NotFoundException);
-      await expect(service.findOne('id-inexistente', sectorId)).rejects.toThrow('Serviço do Setor não encontrado');
+      await expect(service.findOne('id-inexistente', sectorId)).rejects.toThrow(
+        NotFoundException,
+      );
+      await expect(service.findOne('id-inexistente', sectorId)).rejects.toThrow(
+        'Serviço do Setor não encontrado',
+      );
     });
 
     it('deve lançar NotFoundException se setor não existe', async () => {
-      mockSectorsService.findOne.mockRejectedValue(new NotFoundException('Setor não encontrado'));
+      mockSectorsService.findOne.mockRejectedValue(
+        new NotFoundException('Setor não encontrado'),
+      );
 
-      await expect(service.findOne('service-uuid-1', 'setor-inexistente')).rejects.toThrow(NotFoundException);
+      await expect(
+        service.findOne('service-uuid-1', 'setor-inexistente'),
+      ).rejects.toThrow(NotFoundException);
       expect(mockPrisma.sectorService.findFirst).not.toHaveBeenCalled();
     });
 
@@ -310,8 +332,12 @@ describe('SectorservicesService', () => {
       mockSectorsService.findOne.mockResolvedValue(baseSector);
       mockPrisma.sectorService.findFirst.mockResolvedValue(null);
 
-      await expect(service.findOne('service-uuid-1', 'outro-setor')).rejects.toThrow(NotFoundException);
-      await expect(service.findOne('service-uuid-1', 'outro-setor')).rejects.toThrow('Serviço do Setor não encontrado');
+      await expect(
+        service.findOne('service-uuid-1', 'outro-setor'),
+      ).rejects.toThrow(NotFoundException);
+      await expect(
+        service.findOne('service-uuid-1', 'outro-setor'),
+      ).rejects.toThrow('Serviço do Setor não encontrado');
     });
 
     it('deve validar setor antes de buscar o serviço', async () => {
@@ -342,7 +368,9 @@ describe('SectorservicesService', () => {
       mockPrisma.sectorService.findFirst.mockResolvedValue(baseService);
       mockPrisma.sectorService.update.mockResolvedValue(updated);
 
-      const result = await service.update('service-uuid-1', sectorId, { name: 'Suporte Técnico' });
+      const result = await service.update('service-uuid-1', sectorId, {
+        name: 'Suporte Técnico',
+      });
 
       expect(result.name).toBe('Suporte Técnico');
       expect(mockPrisma.sectorService.update).toHaveBeenCalledWith({
@@ -355,23 +383,34 @@ describe('SectorservicesService', () => {
       mockSectorsService.findOne.mockResolvedValue(baseSector);
       mockPrisma.sectorService.findFirst.mockResolvedValue(null);
 
-      await expect(service.update('id-inexistente', sectorId, { name: 'X' })).rejects.toThrow(NotFoundException);
+      await expect(
+        service.update('id-inexistente', sectorId, { name: 'X' }),
+      ).rejects.toThrow(NotFoundException);
       expect(mockPrisma.sectorService.update).not.toHaveBeenCalled();
     });
 
     it('deve lançar NotFoundException se setor não existe', async () => {
-      mockSectorsService.findOne.mockRejectedValue(new NotFoundException('Setor não encontrado'));
+      mockSectorsService.findOne.mockRejectedValue(
+        new NotFoundException('Setor não encontrado'),
+      );
 
-      await expect(service.update('service-uuid-1', 'setor-inexistente', {})).rejects.toThrow(NotFoundException);
+      await expect(
+        service.update('service-uuid-1', 'setor-inexistente', {}),
+      ).rejects.toThrow(NotFoundException);
       expect(mockPrisma.sectorService.update).not.toHaveBeenCalled();
     });
 
     it('deve aceitar update parcial (só name)', async () => {
       mockSectorsService.findOne.mockResolvedValue(baseSector);
       mockPrisma.sectorService.findFirst.mockResolvedValue(baseService);
-      mockPrisma.sectorService.update.mockResolvedValue({ ...baseService, name: 'Novo Nome' });
+      mockPrisma.sectorService.update.mockResolvedValue({
+        ...baseService,
+        name: 'Novo Nome',
+      });
 
-      const result = await service.update('service-uuid-1', sectorId, { name: 'Novo Nome' });
+      const result = await service.update('service-uuid-1', sectorId, {
+        name: 'Novo Nome',
+      });
 
       expect(result.name).toBe('Novo Nome');
       expect(result.active).toBe(true);
@@ -416,14 +455,20 @@ describe('SectorservicesService', () => {
       mockSectorsService.findOne.mockResolvedValue(baseSector);
       mockPrisma.sectorService.findFirst.mockResolvedValue(null);
 
-      await expect(service.toggleActive('id-inexistente', sectorId)).rejects.toThrow(NotFoundException);
+      await expect(
+        service.toggleActive('id-inexistente', sectorId),
+      ).rejects.toThrow(NotFoundException);
       expect(mockPrisma.sectorService.update).not.toHaveBeenCalled();
     });
 
     it('deve lançar NotFoundException se setor não existe', async () => {
-      mockSectorsService.findOne.mockRejectedValue(new NotFoundException('Setor não encontrado'));
+      mockSectorsService.findOne.mockRejectedValue(
+        new NotFoundException('Setor não encontrado'),
+      );
 
-      await expect(service.toggleActive('service-uuid-1', 'setor-inexistente')).rejects.toThrow(NotFoundException);
+      await expect(
+        service.toggleActive('service-uuid-1', 'setor-inexistente'),
+      ).rejects.toThrow(NotFoundException);
       expect(mockPrisma.sectorService.update).not.toHaveBeenCalled();
     });
 
@@ -441,9 +486,15 @@ describe('SectorservicesService', () => {
 
     it('toggle usa active do SERVIÇO, não do setor', async () => {
       const inactiveService = { ...baseService, active: false };
-      mockSectorsService.findOne.mockResolvedValue({ ...baseSector, active: true });
+      mockSectorsService.findOne.mockResolvedValue({
+        ...baseSector,
+        active: true,
+      });
       mockPrisma.sectorService.findFirst.mockResolvedValue(inactiveService);
-      mockPrisma.sectorService.update.mockResolvedValue({ ...baseService, active: true });
+      mockPrisma.sectorService.update.mockResolvedValue({
+        ...baseService,
+        active: true,
+      });
 
       await service.toggleActive('service-uuid-1', sectorId);
 
@@ -486,7 +537,10 @@ describe('SectorservicesService', () => {
     it('toggleActive deve fazer 2 queries (findOne + update)', async () => {
       mockSectorsService.findOne.mockResolvedValue(baseSector);
       mockPrisma.sectorService.findFirst.mockResolvedValue(baseService);
-      mockPrisma.sectorService.update.mockResolvedValue({ ...baseService, active: false });
+      mockPrisma.sectorService.update.mockResolvedValue({
+        ...baseService,
+        active: false,
+      });
 
       await service.toggleActive('service-uuid-1', sectorId);
 

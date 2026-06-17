@@ -80,15 +80,21 @@ describe('SectorsService', () => {
 
       await service.create(createDto);
 
-      expect(mockPrisma.sector.create).toHaveBeenCalledWith({ data: createDto });
+      expect(mockPrisma.sector.create).toHaveBeenCalledWith({
+        data: createDto,
+      });
       expect(mockPrisma.sector.create).toHaveBeenCalledTimes(1);
     });
 
     it('deve propagar erro de nome duplicado (P2002)', async () => {
-      const prismaError = Object.assign(new Error('Unique constraint'), { code: 'P2002' });
+      const prismaError = Object.assign(new Error('Unique constraint'), {
+        code: 'P2002',
+      });
       mockPrisma.sector.create.mockRejectedValue(prismaError);
 
-      await expect(service.create(createDto)).rejects.toMatchObject({ code: 'P2002' });
+      await expect(service.create(createDto)).rejects.toMatchObject({
+        code: 'P2002',
+      });
     });
 
     it('deve criar setor com active: false', async () => {
@@ -109,7 +115,12 @@ describe('SectorsService', () => {
       };
       mockPrisma.sector.create.mockResolvedValue(allFalse);
 
-      const result = await service.create({ ...createDto, onlyManagerCanView: false, onlyManagerCanEdit: false, onlyManagerCanArchive: false });
+      const result = await service.create({
+        ...createDto,
+        onlyManagerCanView: false,
+        onlyManagerCanEdit: false,
+        onlyManagerCanArchive: false,
+      });
 
       expect(result.onlyManagerCanView).toBe(false);
       expect(result.onlyManagerCanEdit).toBe(false);
@@ -208,7 +219,9 @@ describe('SectorsService', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             OR: expect.arrayContaining([
-              expect.objectContaining({ name: expect.objectContaining({ contains: 'TI' }) }),
+              expect.objectContaining({
+                name: expect.objectContaining({ contains: 'TI' }),
+              }),
             ]),
           }),
         }),
@@ -264,8 +277,12 @@ describe('SectorsService', () => {
     it('deve lançar NotFoundException quando setor não existe', async () => {
       mockPrisma.sector.findUnique.mockResolvedValue(null);
 
-      await expect(service.findOne('id-inexistente')).rejects.toThrow(NotFoundException);
-      await expect(service.findOne('id-inexistente')).rejects.toThrow('Setor não encontrado');
+      await expect(service.findOne('id-inexistente')).rejects.toThrow(
+        NotFoundException,
+      );
+      await expect(service.findOne('id-inexistente')).rejects.toThrow(
+        'Setor não encontrado',
+      );
     });
 
     it('deve fazer apenas 1 query ao banco', async () => {
@@ -323,8 +340,22 @@ describe('SectorsService', () => {
       const sectorWithMixed = {
         ...baseSector,
         sectorServices: [
-          { id: 'ss-1', name: 'Ativo', active: true, sectorId: 'uuid-1', createdAt: new Date(), updatedAt: new Date() },
-          { id: 'ss-2', name: 'Inativo', active: false, sectorId: 'uuid-1', createdAt: new Date(), updatedAt: new Date() },
+          {
+            id: 'ss-1',
+            name: 'Ativo',
+            active: true,
+            sectorId: 'uuid-1',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: 'ss-2',
+            name: 'Inativo',
+            active: false,
+            sectorId: 'uuid-1',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
         ],
       };
       mockPrisma.sector.findUnique.mockResolvedValue(sectorWithMixed);
@@ -339,7 +370,10 @@ describe('SectorsService', () => {
     });
 
     it('deve incluir sectorServices na query (include: { sectorServices: true })', async () => {
-      mockPrisma.sector.findUnique.mockResolvedValue({ ...baseSector, sectorServices: [] });
+      mockPrisma.sector.findUnique.mockResolvedValue({
+        ...baseSector,
+        sectorServices: [],
+      });
 
       await service.findOne('uuid-1');
 
@@ -381,13 +415,17 @@ describe('SectorsService', () => {
     it('deve lançar NotFoundException ao atualizar id inexistente', async () => {
       mockPrisma.sector.findUnique.mockResolvedValue(null);
 
-      await expect(service.update('id-inexistente', { name: 'X' })).rejects.toThrow(NotFoundException);
+      await expect(
+        service.update('id-inexistente', { name: 'X' }),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('não deve chamar update se findOne lançar exceção', async () => {
       mockPrisma.sector.findUnique.mockResolvedValue(null);
 
-      await expect(service.update('id-inexistente', {})).rejects.toThrow(NotFoundException);
+      await expect(service.update('id-inexistente', {})).rejects.toThrow(
+        NotFoundException,
+      );
 
       expect(mockPrisma.sector.update).not.toHaveBeenCalled();
     });
@@ -438,13 +476,17 @@ describe('SectorsService', () => {
     it('deve lançar NotFoundException para id inexistente', async () => {
       mockPrisma.sector.findUnique.mockResolvedValue(null);
 
-      await expect(service.toggleActive('id-inexistente')).rejects.toThrow(NotFoundException);
+      await expect(service.toggleActive('id-inexistente')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('não deve chamar update se setor não existe', async () => {
       mockPrisma.sector.findUnique.mockResolvedValue(null);
 
-      await expect(service.toggleActive('id-inexistente')).rejects.toThrow(NotFoundException);
+      await expect(service.toggleActive('id-inexistente')).rejects.toThrow(
+        NotFoundException,
+      );
 
       expect(mockPrisma.sector.update).not.toHaveBeenCalled();
     });
@@ -459,12 +501,17 @@ describe('SectorsService', () => {
       expect(result.name).toBe(baseSector.name);
       expect(result.onlyManagerCanEdit).toBe(baseSector.onlyManagerCanEdit);
       expect(result.onlyManagerCanView).toBe(baseSector.onlyManagerCanView);
-      expect(result.onlyManagerCanArchive).toBe(baseSector.onlyManagerCanArchive);
+      expect(result.onlyManagerCanArchive).toBe(
+        baseSector.onlyManagerCanArchive,
+      );
     });
 
     it('deve fazer exatamente 2 queries (findOne + update)', async () => {
       mockPrisma.sector.findUnique.mockResolvedValue(baseSector);
-      mockPrisma.sector.update.mockResolvedValue({ ...baseSector, active: false });
+      mockPrisma.sector.update.mockResolvedValue({
+        ...baseSector,
+        active: false,
+      });
 
       await service.toggleActive('uuid-1');
 
@@ -486,7 +533,11 @@ describe('SectorsService', () => {
     });
 
     it('findAll com 1000 registros deve resolver em menos de 100ms', async () => {
-      const bigList = Array.from({ length: 1000 }, (_, i) => ({ ...baseSector, id: `uuid-${i}`, name: `Setor ${i}` }));
+      const bigList = Array.from({ length: 1000 }, (_, i) => ({
+        ...baseSector,
+        id: `uuid-${i}`,
+        name: `Setor ${i}`,
+      }));
       mockPrisma.sector.findMany.mockResolvedValue(bigList);
       mockPrisma.sector.count.mockResolvedValue(1000);
 
@@ -499,7 +550,10 @@ describe('SectorsService', () => {
 
     it('toggleActive deve resolver em menos de 100ms', async () => {
       mockPrisma.sector.findUnique.mockResolvedValue(baseSector);
-      mockPrisma.sector.update.mockResolvedValue({ ...baseSector, active: false });
+      mockPrisma.sector.update.mockResolvedValue({
+        ...baseSector,
+        active: false,
+      });
 
       const start = Date.now();
       await service.toggleActive('uuid-1');

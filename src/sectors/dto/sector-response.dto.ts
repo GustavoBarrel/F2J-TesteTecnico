@@ -1,12 +1,11 @@
-import { IsArray, IsBoolean, IsDate, IsNotEmpty, IsOptional, IsString } from "class-validator";
-import { ApiProperty } from "@nestjs/swagger";
-import { SectorServiceResponseDto } from "src/sector-services/dto/sectorservice-response.dto";
+import { ApiProperty } from '@nestjs/swagger';
+import { SectorServiceResponseDto } from 'src/sector-services/dto/sector-service-response.dto';
 
 export class SectorResponseDto {
   @ApiProperty({
     description: 'o identificador único do setor',
     example: '123e4567-e89b-12d3-a456-426614174000',
-  })    
+  })
   id: string;
 
   @ApiProperty({
@@ -17,7 +16,7 @@ export class SectorResponseDto {
 
   @ApiProperty({
     description: 'se o gerente pode visualizar o setor',
-    example: 'true',
+    example: true,
   })
   onlyManagerCanView: boolean;
 
@@ -53,9 +52,9 @@ export class SectorResponseDto {
 
   @ApiProperty({
     description: 'os serviços do setor',
-    example: [
-      { id: '123e4567-e89b-12d3-a456-426614174000', name: 'Serviço 1' },
-    ],
+    type: () => SectorServiceResponseDto,
+    isArray: true,
+    required: false,
   })
   sectorServices?: SectorServiceResponseDto[];
 }

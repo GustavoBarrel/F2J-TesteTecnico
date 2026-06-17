@@ -1,6 +1,6 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty, IsString } from "class-validator";
-import { IsBoolean } from "class-validator";
+import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsString } from 'class-validator';
+import { IsBoolean } from 'class-validator';
 
 export class CreateSectorDto {
   @ApiProperty({
@@ -33,7 +33,7 @@ export class CreateSectorDto {
   })
   @IsBoolean({ message: 'Se o Gerente pode editar o Setor é obrigatório' })
   @IsNotEmpty({ message: 'Se o Gerente pode editar o Setor é obrigatório' })
-  onlyManagerCanEdit: boolean
+  onlyManagerCanEdit: boolean;
 
   @ApiProperty({
     description: 'Se o Gerente pode arquivar o Setor',

@@ -5,7 +5,6 @@ import {
   Body,
   Patch,
   Param,
-  Delete,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -80,8 +79,7 @@ export class UsersController {
   @Patch(':id/toggle-active')
   @ApiOperation({
     summary: 'Ativar/desativar usuário',
-    description:
-      'Ativa/desativa o usuário.',
+    description: 'Ativa/desativa o usuário.',
   })
   @ApiOkResponse({ type: UserResponseDto })
   @ApiNotFoundResponse({ description: 'Usuário não encontrado' })

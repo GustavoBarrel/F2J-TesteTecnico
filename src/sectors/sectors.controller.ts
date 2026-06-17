@@ -1,14 +1,32 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  UseGuards,
+  Query,
+} from '@nestjs/common';
 import { SectorsService } from './sectors.service';
 import { CreateSectorDto } from './dto/create-sector.dto';
 import { UpdateSectorDto } from './dto/update-sector.dto';
 import { GlobalAdminGuard } from 'src/auth/guards/global-admin.guard';
-import { ApiOperation, ApiOkResponse, ApiNotFoundResponse, ApiTags, ApiForbiddenResponse, ApiUnauthorizedResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiOkResponse,
+  ApiNotFoundResponse,
+  ApiTags,
+  ApiForbiddenResponse,
+  ApiUnauthorizedResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { ApiCreatedResponse } from '@nestjs/swagger';
 import { SectorResponseDto } from './dto/sector-response.dto';
 import { FindAllQueryDto } from 'src/common/dto/find-all-query.dto';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { ApiPaginatedResponse } from 'src/common/decorators/api-paginated-response.decorator';
+import { UserResponseDto } from 'src/users/dto/user-response.dto';
 
 @ApiTags('Admin: Setores')
 @ApiBearerAuth()
@@ -31,8 +49,21 @@ export class SectorsController {
   @Get()
   @ApiOperation({ summary: 'Listar setores' })
   @ApiPaginatedResponse(SectorResponseDto)
-  findAll(@Query() query: FindAllQueryDto): Promise<PaginatedResponseDto<SectorResponseDto>> {
+  findAll(
+    @Query() query: FindAllQueryDto,
+  ): Promise<PaginatedResponseDto<SectorResponseDto>> {
     return this.sectorsService.findAll(query);
+  }
+
+  @Get(':id/available-users')
+  @ApiOperation({ summary: 'Listar usuários disponíveis para vincular ao setor', description: 'Retorna paginado os usuários ativos que ainda não possuem membership neste setor.' })
+  @ApiPaginatedResponse(UserResponseDto)
+  @ApiNotFoundResponse({ description: 'Setor não encontrado' })
+  findAvailableUsers(
+    @Param('id') id: string,
+    @Query() query: FindAllQueryDto,
+  ): Promise<PaginatedResponseDto<UserResponseDto>> {
+    return this.sectorsService.findAvailableUsers(id, query);
   }
 
   @Get(':id')
@@ -47,7 +78,10 @@ export class SectorsController {
   @ApiOperation({ summary: 'Atualizar setor' })
   @ApiOkResponse({ type: SectorResponseDto })
   @ApiNotFoundResponse({ description: 'Setor não encontrado' })
-  update(@Param('id') id: string, @Body() updateSectorDto: UpdateSectorDto): Promise<SectorResponseDto> {
+  update(
+    @Param('id') id: string,
+    @Body() updateSectorDto: UpdateSectorDto,
+  ): Promise<SectorResponseDto> {
     return this.sectorsService.update(id, updateSectorDto);
   }
 
