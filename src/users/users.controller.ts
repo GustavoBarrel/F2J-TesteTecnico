@@ -13,7 +13,7 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
-import { FindAllQueryDto } from './dto/find-all-query.dto';
+import { FindAllQueryDto } from '../common/dto/find-all-query.dto';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { ApiPaginatedResponse } from 'src/common/decorators/api-paginated-response.decorator';
 import { GlobalAdminGuard } from 'src/auth/guards/global-admin.guard';
@@ -63,7 +63,7 @@ export class UsersController {
   @ApiOkResponse({ type: UserResponseDto })
   @ApiNotFoundResponse({ description: 'Usuário não encontrado' })
   findOne(@Param('id') id: string): Promise<UserResponseDto> {
-    return this.usersService.findById(id);
+    return this.usersService.findOne(id);
   }
 
   @Patch(':id')
@@ -77,15 +77,15 @@ export class UsersController {
     return this.usersService.update(id, updateUserDto);
   }
 
-  @Delete(':id')
+  @Patch(':id/toggle-active')
   @ApiOperation({
-    summary: 'Desativar usuário',
+    summary: 'Ativar/desativar usuário',
     description:
-      'Desativa o usuário (soft delete). O registro não é removido do banco.',
+      'Ativa/desativa o usuário.',
   })
   @ApiOkResponse({ type: UserResponseDto })
   @ApiNotFoundResponse({ description: 'Usuário não encontrado' })
-  deactivate(@Param('id') id: string): Promise<UserResponseDto> {
-    return this.usersService.deactivate(id);
+  toggleActive(@Param('id') id: string): Promise<UserResponseDto> {
+    return this.usersService.toggleActive(id);
   }
 }

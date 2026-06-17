@@ -4,7 +4,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma } from '../../generated/prisma/client';
 import * as bcrypt from 'bcrypt';
-import { FindAllQueryDto } from './dto/find-all-query.dto';
+import { FindAllQueryDto } from '../common/dto/find-all-query.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import {
   DEFAULT_LIMIT,
@@ -88,7 +88,7 @@ export class UsersService {
     };
   }
 
-  async findById(id: string): Promise<UserResponseDto> {
+  async findOne(id: string): Promise<UserResponseDto> {
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: userSelect,
@@ -105,7 +105,7 @@ export class UsersService {
     id: string,
     updateUserDto: UpdateUserDto,
   ): Promise<UserResponseDto> {
-    const current = await this.findById(id);
+    const current = await this.findOne(id);
 
     const password = updateUserDto.password
       ? await bcrypt.hash(updateUserDto.password, SALT_ROUNDS)
@@ -128,15 +128,17 @@ export class UsersService {
     });
   }
 
-  async deactivate(id: string): Promise<UserResponseDto> {
-    await this.findById(id);
+  async toggleActive(id: string): Promise<UserResponseDto> {
+    const user = await this.findOne(id);
 
-    return this.prisma.user.update({
+    const updatedUser = await this.prisma.user.update({
       where: { id },
       data: {
-        isActive: false,
+        isActive: !user.isActive,
       },
       select: userSelect,
     });
+
+    return updatedUser;
   }
 }
