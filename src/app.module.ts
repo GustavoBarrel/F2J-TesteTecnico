@@ -6,6 +6,8 @@ import { SectorsModule } from './sectors/sectors.module';
 import { SectorservicesModule } from './sector-services/sector-services.module';
 import { UserSectorMembershipModule } from './user-sector-membership/user-sector-membership.module';
 import { RolesModule } from './roles/roles.module';
+import { RequestsModule } from './requests/requests.module';
+import { MeModule } from './me/me.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { RolesModule } from './roles/roles.module';
     SectorservicesModule,
     UserSectorMembershipModule,
     RolesModule,
+    RequestsModule,
+    MeModule,
   ],
 })
 export class AppModule {}

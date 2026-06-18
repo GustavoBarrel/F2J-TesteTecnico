@@ -24,7 +24,8 @@ model User {
   updatedAt              DateTime                @updatedAt
   userSectorMemberships  UserSectorMembership[]
   createdRequests        Request[]               @relation("CreatedByUser")
-  assignedRequests       Request[]               @relation("AssignedToUser")
+  requestAssignments     RequestAssignee[]
+  observedRequests       RequestObserver[]
   requestMessages        RequestMessage[]
   requestHistories       RequestHistory[]
 
@@ -98,21 +99,48 @@ model Request {
   sectorId         String           @map("sector_id")
   sectorServiceId  String           @map("sector_service_id")
   createdById      String           @map("created_by_id")
-  assignedToId     String?          @map("assigned_to_id")
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
   sector           Sector           @relation(fields: [sectorId], references: [id])
   sectorService    SectorService    @relation(fields: [sectorServiceId], references: [id])
   createdBy        User             @relation("CreatedByUser", fields: [createdById], references: [id], onDelete: Restrict)
-  assignedTo       User?            @relation("AssignedToUser", fields: [assignedToId], references: [id], onDelete: SetNull)
+  assignees        RequestAssignee[]
+  observers        RequestObserver[]
   messages         RequestMessage[]
   history          RequestHistory[]
 
   @@index([sectorId, status])
   @@index([createdById])
-  @@index([assignedToId])
   @@map("requests")
+}
+
+model RequestAssignee {
+  id         String   @id @default(uuid())
+  requestId  String   @map("request_id")
+  userId     String   @map("user_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  request    Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([requestId, userId])
+  @@index([userId])
+  @@map("request_assignees")
+}
+
+model RequestObserver {
+  id         String   @id @default(uuid())
+  requestId  String   @map("request_id")
+  userId     String   @map("user_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  request    Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([requestId, userId])
+  @@index([userId])
+  @@map("request_observers")
 }
 
 model RequestMessage {

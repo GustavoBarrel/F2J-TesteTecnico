@@ -28,7 +28,6 @@ import { ApiPaginatedResponse } from 'src/common/decorators/api-paginated-respon
 
 @ApiTags('Admin: Serviços do Setor')
 @ApiBearerAuth()
-@UseGuards(GlobalAdminGuard)
 @ApiUnauthorizedResponse({ description: 'Token inválido ou não informado' })
 @ApiForbiddenResponse({
   description: 'Acesso permitido apenas para super admin',
@@ -38,6 +37,7 @@ export class SectorservicesController {
   constructor(private readonly sectorservicesService: SectorservicesService) {}
 
   @Post()
+  @UseGuards(GlobalAdminGuard)
   @ApiOperation({ summary: 'Criar um novo serviço do setor' })
   @ApiCreatedResponse({ type: SectorServiceResponseDto })
   create(
@@ -48,6 +48,7 @@ export class SectorservicesController {
   }
 
   @Get()
+  @UseGuards(GlobalAdminGuard)
   @ApiOperation({ summary: 'Listar serviços de um setor' })
   @ApiPaginatedResponse(SectorServiceResponseDto)
   @ApiOkResponse({ type: SectorServiceResponseDto })
@@ -59,6 +60,7 @@ export class SectorservicesController {
   }
 
   @Get(':id')
+  @UseGuards(GlobalAdminGuard)
   @ApiOperation({ summary: 'Buscar um serviço do setor' })
   @ApiOkResponse({ type: SectorServiceResponseDto })
   findOne(
@@ -69,6 +71,7 @@ export class SectorservicesController {
   }
 
   @Patch(':id')
+  @UseGuards(GlobalAdminGuard)
   @ApiOperation({ summary: 'Atualizar um serviço do setor' })
   @ApiOkResponse({ type: SectorServiceResponseDto })
   update(
@@ -84,6 +87,7 @@ export class SectorservicesController {
   }
 
   @Patch(':id/toggle-active')
+  @UseGuards(GlobalAdminGuard)
   @ApiOperation({ summary: 'Ativar/desativar um serviço do setor' })
   @ApiOkResponse({ type: SectorServiceResponseDto })
   toggleActive(

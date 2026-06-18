@@ -27,10 +27,11 @@ import { FindAllQueryDto } from 'src/common/dto/find-all-query.dto';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { ApiPaginatedResponse } from 'src/common/decorators/api-paginated-response.decorator';
 import { UserResponseDto } from 'src/users/dto/user-response.dto';
+import { SectorServiceResponseDto } from 'src/sector-services/dto/sector-service-response.dto';
+import { FindServiceOptionsResponseDto } from './dto/find-service-options-response.dto';
 
 @ApiTags('Admin: Setores')
 @ApiBearerAuth()
-@UseGuards(GlobalAdminGuard)
 @ApiUnauthorizedResponse({ description: 'Token inválido ou não informado' })
 @ApiForbiddenResponse({
   description: 'Acesso permitido apenas para super admin',
@@ -40,6 +41,7 @@ export class SectorsController {
   constructor(private readonly sectorsService: SectorsService) {}
 
   @Post()
+  @UseGuards(GlobalAdminGuard)
   @ApiOperation({ summary: 'Criar setor' })
   @ApiCreatedResponse({ type: SectorResponseDto })
   create(@Body() createSectorDto: CreateSectorDto): Promise<SectorResponseDto> {
@@ -47,6 +49,7 @@ export class SectorsController {
   }
 
   @Get()
+  @UseGuards(GlobalAdminGuard)
   @ApiOperation({ summary: 'Listar setores' })
   @ApiPaginatedResponse(SectorResponseDto)
   findAll(
@@ -56,6 +59,7 @@ export class SectorsController {
   }
 
   @Get(':id/available-users')
+  @UseGuards(GlobalAdminGuard)
   @ApiOperation({ summary: 'Listar usuários disponíveis para vincular ao setor', description: 'Retorna paginado os usuários ativos que ainda não possuem membership neste setor.' })
   @ApiPaginatedResponse(UserResponseDto)
   @ApiNotFoundResponse({ description: 'Setor não encontrado' })
@@ -67,6 +71,7 @@ export class SectorsController {
   }
 
   @Get(':id')
+  @UseGuards(GlobalAdminGuard)
   @ApiOperation({ summary: 'Buscar setor por ID' })
   @ApiOkResponse({ type: SectorResponseDto })
   @ApiNotFoundResponse({ description: 'Setor não encontrado' })
@@ -75,6 +80,7 @@ export class SectorsController {
   }
 
   @Patch(':id')
+  @UseGuards(GlobalAdminGuard)
   @ApiOperation({ summary: 'Atualizar setor' })
   @ApiOkResponse({ type: SectorResponseDto })
   @ApiNotFoundResponse({ description: 'Setor não encontrado' })
@@ -86,10 +92,18 @@ export class SectorsController {
   }
 
   @Patch(':id/toggle-active')
+  @UseGuards(GlobalAdminGuard)
   @ApiOperation({ summary: 'Ativar/desativar setor' })
   @ApiOkResponse({ type: SectorResponseDto })
   @ApiNotFoundResponse({ description: 'Setor não encontrado' })
   toggleActive(@Param('id') id: string): Promise<SectorResponseDto> {
     return this.sectorsService.toggleActive(id);
+  }
+
+  @Get('services/options')
+  @ApiOperation({ summary: 'Listar opções de serviços para um setor' })
+  @ApiOkResponse({ type: FindServiceOptionsResponseDto })
+  findSectorServicesOptions(): Promise<FindServiceOptionsResponseDto[]>{
+    return this.sectorsService.findSectorServicesOptions();
   }
 }

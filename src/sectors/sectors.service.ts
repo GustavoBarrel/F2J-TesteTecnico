@@ -11,6 +11,7 @@ import {
 } from 'src/common/dto/pagination-query.dto';
 import { Prisma } from '../../generated/prisma/client';
 import { UserResponseDto } from 'src/users/dto/user-response.dto';
+import { FindServiceOptionsResponseDto } from './dto/find-service-options-response.dto';
 
 @Injectable()
 export class SectorsService {
@@ -156,5 +157,43 @@ export class SectorsService {
     });
 
     return updatedSector;
+  }
+
+  async findMembersOptions(sectorId: string): Promise<
+    Array<{
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      role: { id: string; name: string; slug: string };
+    }>
+  > {
+    await this.findOne(sectorId);
+
+    const memberships = await this.prisma.userSectorMembership.findMany({
+      where: { sectorId, user: { isActive: true } },
+      include: {
+        user: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
+        role: { select: { id: true, name: true, slug: true } },
+      },
+      orderBy: [{ role: { slug: 'asc' } }, { user: { firstName: 'asc' } }],
+    });
+
+    return memberships.map(({ user, role }) => ({ ...user, role }));
+  }
+
+  async findSectorServicesOptions(): Promise<FindServiceOptionsResponseDto[]> {
+    const sectorServices = await this.prisma.sector.findMany({
+      where: { isActive: true },
+      include: {
+        sectorServices: {
+          where: { isActive: true },
+        },
+      },
+    });
+    
+    return sectorServices;
   }
 }
