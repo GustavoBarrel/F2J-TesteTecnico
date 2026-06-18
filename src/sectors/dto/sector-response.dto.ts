@@ -36,7 +36,7 @@ export class SectorResponseDto {
     description: 'se o setor está ativo',
     example: true,
   })
-  active: boolean;
+  isActive: boolean;
 
   @ApiProperty({
     description: 'a data e hora da criação do setor',

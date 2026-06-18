@@ -12,7 +12,7 @@ const sectorId = 'sector-uuid-1';
 const baseSector = {
   id: sectorId,
   name: 'TI',
-  active: true,
+  isActive: true,
   onlyManagerCanView: true,
   onlyManagerCanEdit: true,
   onlyManagerCanArchive: true,
@@ -24,7 +24,7 @@ const baseSector = {
 const baseService = {
   id: 'service-uuid-1',
   name: 'Instalação de Software',
-  active: true,
+  isActive: true,
   sectorId,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -32,7 +32,7 @@ const baseService = {
 
 const createDto = {
   name: 'Instalação de Software',
-  active: true,
+  isActive: true,
   sectorId,
 };
 
@@ -124,17 +124,17 @@ describe('SectorservicesService', () => {
       });
     });
 
-    it('deve criar serviço com active: false', async () => {
-      const inactiveService = { ...baseService, active: false };
+    it('deve criar serviço com isActive: false', async () => {
+      const inactiveService = { ...baseService, isActive: false };
       mockSectorsService.findOne.mockResolvedValue(baseSector);
       mockPrisma.sectorService.create.mockResolvedValue(inactiveService);
 
       const result = await service.create(sectorId, {
         ...createDto,
-        active: false,
+        isActive: false,
       });
 
-      expect(result.active).toBe(false);
+      expect(result.isActive).toBe(false);
     });
 
     it('não deve chamar create se validação do setor falhar', async () => {
@@ -220,7 +220,7 @@ describe('SectorservicesService', () => {
 
       expect(mockPrisma.sectorService.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ active: true }),
+          where: expect.objectContaining({ isActive: true }),
         }),
       );
     });
@@ -234,7 +234,7 @@ describe('SectorservicesService', () => {
 
       expect(mockPrisma.sectorService.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ active: false }),
+          where: expect.objectContaining({ isActive: false }),
         }),
       );
     });
@@ -413,7 +413,7 @@ describe('SectorservicesService', () => {
       });
 
       expect(result.name).toBe('Novo Nome');
-      expect(result.active).toBe(true);
+      expect(result.isActive).toBe(true);
     });
   });
 
@@ -421,33 +421,33 @@ describe('SectorservicesService', () => {
 
   describe('toggleActive', () => {
     it('deve desativar serviço ativo (true → false)', async () => {
-      const deactivated = { ...baseService, active: false };
+      const deactivated = { ...baseService, isActive: false };
       mockSectorsService.findOne.mockResolvedValue(baseSector);
       mockPrisma.sectorService.findFirst.mockResolvedValue(baseService);
       mockPrisma.sectorService.update.mockResolvedValue(deactivated);
 
       const result = await service.toggleActive('service-uuid-1', sectorId);
 
-      expect(result.active).toBe(false);
+      expect(result.isActive).toBe(false);
       expect(mockPrisma.sectorService.update).toHaveBeenCalledWith({
         where: { id: 'service-uuid-1' },
-        data: { active: false },
+        data: { isActive: false },
       });
     });
 
     it('deve ativar serviço inativo (false → true)', async () => {
-      const inactiveService = { ...baseService, active: false };
-      const activated = { ...baseService, active: true };
+      const inactiveService = { ...baseService, isActive: false };
+      const activated = { ...baseService, isActive: true };
       mockSectorsService.findOne.mockResolvedValue(baseSector);
       mockPrisma.sectorService.findFirst.mockResolvedValue(inactiveService);
       mockPrisma.sectorService.update.mockResolvedValue(activated);
 
       const result = await service.toggleActive('service-uuid-1', sectorId);
 
-      expect(result.active).toBe(true);
+      expect(result.isActive).toBe(true);
       expect(mockPrisma.sectorService.update).toHaveBeenCalledWith({
         where: { id: 'service-uuid-1' },
-        data: { active: true },
+        data: { isActive: true },
       });
     });
 
@@ -473,7 +473,7 @@ describe('SectorservicesService', () => {
     });
 
     it('não deve alterar outros campos além de active', async () => {
-      const deactivated = { ...baseService, active: false };
+      const deactivated = { ...baseService, isActive: false };
       mockSectorsService.findOne.mockResolvedValue(baseSector);
       mockPrisma.sectorService.findFirst.mockResolvedValue(baseService);
       mockPrisma.sectorService.update.mockResolvedValue(deactivated);
@@ -485,21 +485,21 @@ describe('SectorservicesService', () => {
     });
 
     it('toggle usa active do SERVIÇO, não do setor', async () => {
-      const inactiveService = { ...baseService, active: false };
+      const inactiveService = { ...baseService, isActive: false };
       mockSectorsService.findOne.mockResolvedValue({
         ...baseSector,
-        active: true,
+        isActive: true,
       });
       mockPrisma.sectorService.findFirst.mockResolvedValue(inactiveService);
       mockPrisma.sectorService.update.mockResolvedValue({
         ...baseService,
-        active: true,
+        isActive: true,
       });
 
       await service.toggleActive('service-uuid-1', sectorId);
 
       expect(mockPrisma.sectorService.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { active: true } }),
+        expect.objectContaining({ data: { isActive: true } }),
       );
     });
   });
@@ -539,7 +539,7 @@ describe('SectorservicesService', () => {
       mockPrisma.sectorService.findFirst.mockResolvedValue(baseService);
       mockPrisma.sectorService.update.mockResolvedValue({
         ...baseService,
-        active: false,
+        isActive: false,
       });
 
       await service.toggleActive('service-uuid-1', sectorId);

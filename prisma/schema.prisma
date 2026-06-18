@@ -37,7 +37,7 @@ model Sector {
   onlyManagerCanView     Boolean                 @default(true)
   onlyManagerCanEdit     Boolean                 @default(true)
   onlyManagerCanArchive  Boolean                 @default(true)
-  active                 Boolean                 @default(true)
+  isActive               Boolean                 @default(true)
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
   userSectorMemberships  UserSectorMembership[]
@@ -50,7 +50,7 @@ model Sector {
 model SectorService {
   id         String    @id @default(uuid())
   name       String
-  active     Boolean   @default(true)
+  isActive   Boolean   @default(true)
   sectorId   String    @map("sector_id")
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt

@@ -31,7 +31,7 @@ export class SectorsService {
     const skip = (page - 1) * limit;
 
     const where: Prisma.SectorWhereInput = {
-      active: query.isActive ?? undefined,
+      isActive: query.isActive ?? undefined,
       OR: query.search
         ? [{ name: { contains: query.search, mode: 'insensitive' } }]
         : undefined,
@@ -152,7 +152,7 @@ export class SectorsService {
 
     const updatedSector = await this.prisma.sector.update({
       where: { id },
-      data: { active: !sector.active },
+      data: { isActive: !sector.isActive },
     });
 
     return updatedSector;

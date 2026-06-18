@@ -16,6 +16,6 @@ export class FindAllQueryDto extends PaginationQueryDto {
     return value;
   })
   @IsBoolean({ message: 'O isActive deve ser um booleano' })
-  @ApiPropertyOptional({ description: 'Se o usuário está ativo' })
+  @ApiPropertyOptional({ description: 'Filtrar por status ativo/inativo' })
   isActive?: boolean;
 }

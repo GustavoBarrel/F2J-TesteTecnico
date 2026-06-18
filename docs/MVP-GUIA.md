@@ -830,4 +830,27 @@ O MVP está pronto quando:
 
 ---
 
+## Fase 6+ — Requests (rotas)
+
+Permissões e filtros no **service** via `req.user` + membership + flags do setor (`onlyManagerCanView/Edit/Archive`). `isGlobalAdmin` bypassa tudo.
+
+**Listagem (`GET .../requests`):** MANAGER vê todos; TECHNICIAN com `onlyManagerCanView: true` vê só atribuídos/criados por ele; com `false` vê todos do setor.
+
+**Validações no service:** `sectorServiceId` pertence ao `sectorId`; criador ≠ responsável no `assign`; responsável deve ser membro do setor; criar sem `assignedToId` (fila do setor).
+
+| Método | Rota | Módulo | Para quê | Retorna |
+|--------|------|--------|----------|---------|
+| `GET` | `/auth/profile` | `auth` | Header / sessão | `{ sub, email, username, isGlobalAdmin }` |
+| `GET` | `/me/sectors` | `me` | Home — setores do usuário | Paginado: `{ id, name, role, permissions, counts por status }`. Query: `?status=` |
+| `GET` | `/sectors/:sectorId/services/options` | `sector-services` | Select ao criar chamado | `[{ id, name }]` — só ativos. Valida membro do setor |
+| `GET` | `/sectors/:sectorId/requests` | `requests` | Fila do setor | `{ sector, data[], meta }` — filtra por permissão do usuário. Query: `?status=&priority=&search=` |
+| `POST` | `/sectors/:sectorId/requests` | `requests` | Criar chamado | Body: `{ title, description, sectorServiceId, priority? }`. `assignedTo: null`. History: `CREATED` |
+| `GET` | `/requests/:id` | `requests` | Detalhe (1 request) | Chamado + sector + service + pessoas + `permissions` + `messages` + `history` (se permitido) |
+| `PATCH` | `/requests/:id` | `requests` | Editar campos | Valida `canEdit`. History: `UPDATED` |
+| `PATCH` | `/requests/:id/status` | `requests` | Mudar status | Valida `canChangeStatus`. History: `STATUS_CHANGED` |
+| `PATCH` | `/requests/:id/assign` | `requests` | Atribuir técnico | Só MANAGER. Body: `{ assignedToId }`. Valida membro + criador ≠ responsável. History: `ASSIGNED` |
+| `PATCH` | `/requests/:id/cancel` | `requests` | Cancelar | Valida permissão. History: `CANCELLED` |
+| `PATCH` | `/requests/:id/archive` | `requests` | Arquivar | Respeita `onlyManagerCanArchive`. History: `ARCHIVED` |
+| `POST` | `/requests/:id/messages` | `requests` | Enviar mensagem | Valida `canSendMessage`. History: `MESSAGE_SENT` |
+
 *Guia de implementação — junho/2026*

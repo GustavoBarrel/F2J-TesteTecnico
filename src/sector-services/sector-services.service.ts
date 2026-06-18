@@ -47,7 +47,7 @@ export class SectorservicesService {
 
     const where: Prisma.SectorServiceWhereInput = {
       sectorId,
-      active: query.isActive ?? undefined,
+      isActive: query.isActive ?? undefined,
       ...(query.search
         ? { name: { contains: query.search, mode: 'insensitive' } }
         : {}),
@@ -114,7 +114,7 @@ export class SectorservicesService {
 
     const updated = await this.prisma.sectorService.update({
       where: { id },
-      data: { active: !service.active },
+      data: { isActive: !service.isActive },
     });
 
     return updated;

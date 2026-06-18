@@ -17,7 +17,7 @@ export class CreateSectorDto {
   })
   @IsBoolean({ message: 'Se o Setor está ativo é obrigatório' })
   @IsNotEmpty({ message: 'Se o Setor está ativo é obrigatório' })
-  active: boolean;
+  isActive: boolean;
 
   @ApiProperty({
     description: 'Se o Gerente pode visualizar o Setor',

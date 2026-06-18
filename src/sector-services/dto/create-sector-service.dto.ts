@@ -16,5 +16,5 @@ export class CreateSectorserviceDto {
   })
   @IsBoolean()
   @IsNotEmpty()
-  active: boolean;
+  isActive: boolean;
 }

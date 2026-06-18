@@ -1,6 +1,10 @@
-import { PartialType } from '@nestjs/swagger';
-import { CreateUserSectorMembershipDto } from './create-user-sector-membership.dto';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
 
-export class UpdateUserSectorMembershipDto extends PartialType(
-  CreateUserSectorMembershipDto,
-) {}
+export class UpdateUserSectorMembershipDto {
+  @ApiProperty({ description: 'ID do cargo' })
+  @IsNotEmpty()
+  @IsString()
+  @IsUUID()
+  roleId: string;
+}

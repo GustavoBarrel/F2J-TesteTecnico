@@ -21,7 +21,7 @@ export class SectorServiceResponseDto {
     example: 'true',
   })
   @IsBoolean()
-  active: boolean;
+  isActive: boolean;
 
   @ApiProperty({
     description: 'O ID do Setor ao qual o Serviço pertence',
