@@ -4,6 +4,7 @@ import {
   RequestStatus,
 } from '../../../generated/prisma/client';
 import { RequestPermissionsDto } from './request-permissions.dto';
+import { RequestHistoryAction } from '../../../generated/prisma/client';
 
 export class RequestUserSummaryDto {
   @ApiProperty()
@@ -85,6 +86,43 @@ export class RequestResponseDto {
   permissions: RequestPermissionsDto;
 }
 
+export class RequestMessageResponseDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  content: string;
+
+  @ApiProperty()
+  createdAt: Date;
+
+  @ApiProperty({ type: RequestUserSummaryDto })
+  author: RequestUserSummaryDto;
+}
+
+export class RequestHistoryEntryDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty({ enum: RequestHistoryAction })
+  action: RequestHistoryAction;
+
+  @ApiPropertyOptional({ enum: RequestStatus, nullable: true })
+  fromStatus: RequestStatus | null;
+
+  @ApiPropertyOptional({ enum: RequestStatus, nullable: true })
+  toStatus: RequestStatus | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  metadata: unknown;
+
+  @ApiProperty()
+  createdAt: Date;
+
+  @ApiProperty({ type: RequestUserSummaryDto })
+  user: RequestUserSummaryDto;
+}
+
 export class RequestDetailResponseDto extends RequestResponseDto {
   @ApiProperty({ type: RequestSectorSummaryDto })
   sector: RequestSectorSummaryDto;
@@ -95,22 +133,9 @@ export class RequestDetailResponseDto extends RequestResponseDto {
   @ApiProperty({ type: RequestUserSummaryDto })
   createdBy: RequestUserSummaryDto;
 
-  @ApiProperty()
-  messages: Array<{
-    id: string;
-    content: string;
-    createdAt: Date;
-    author: RequestUserSummaryDto;
-  }>;
+  @ApiProperty({ type: [RequestMessageResponseDto] })
+  messages: RequestMessageResponseDto[];
 
-  @ApiProperty()
-  history: Array<{
-    id: string;
-    action: string;
-    fromStatus: RequestStatus | null;
-    toStatus: RequestStatus | null;
-    metadata: unknown;
-    createdAt: Date;
-    user: RequestUserSummaryDto;
-  }>;
+  @ApiProperty({ type: [RequestHistoryEntryDto] })
+  history: RequestHistoryEntryDto[];
 }

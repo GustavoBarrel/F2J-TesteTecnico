@@ -27,7 +27,11 @@ export class MeController {
   constructor(private readonly meService: MeService) {}
 
   @Get('sectors')
-  @ApiOperation({ summary: 'Setores do usuário com contagem por status' })
+  @ApiOperation({
+    summary: 'Setores do usuário com contagem por status',
+    description:
+      'Retorna os setores nos quais o usuário tem membership (ou todos os setores para admin global), com a contagem de solicitações por status.',
+  })
   @ApiOkResponse({ type: MeSectorResponseDto, isArray: true })
   getMySectors(
     @Query() query: FindAllQueryDto,
@@ -41,7 +45,11 @@ export class MeController {
   }
 
   @Get('requests/assigned')
-  @ApiOperation({ summary: 'Solicitações atribuídas ao usuário' })
+  @ApiOperation({
+    summary: 'Solicitações atribuídas ao usuário',
+    description:
+      'Retorna paginado as solicitações onde o usuário autenticado está na lista de responsáveis.',
+  })
   @ApiPaginatedResponse(RequestResponseDto)
   findAssigned(
     @Query() query: FindAllRequestsQueryDto,
@@ -55,13 +63,15 @@ export class MeController {
   }
 
   @Get('requests')
-  @ApiOperation({ summary: 'Solicitações criadas pelo usuário' })
+  @ApiOperation({
+    summary: 'Solicitações criadas pelo usuário',
+    description: 'Retorna paginado as solicitações abertas pelo usuário autenticado.',
+  })
   @ApiPaginatedResponse(RequestResponseDto)
   findMyRequests(
     @Query() query: FindAllRequestsQueryDto,
     @Request() req: AuthenticatedRequest,
   ): Promise<PaginatedResponseDto<RequestResponseDto>> {
-    console.log('123123123');
     return this.meService.findMyRequests(
       req.user.sub,
       req.user.isGlobalAdmin,
