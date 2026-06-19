@@ -141,4 +141,28 @@ export class UsersService {
 
     return updatedUser;
   }
+
+  async findObserverOptions(search?: string) {
+    return this.prisma.user.findMany({
+      where: {
+        isActive: true,
+        OR: search
+          ? [
+              { firstName: { contains: search, mode: 'insensitive' } },
+              { lastName: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+              { username: { contains: search, mode: 'insensitive' } },
+            ]
+          : undefined,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+      },
+      orderBy: { firstName: 'asc' },
+      take: 50,
+    });
+  }
 }

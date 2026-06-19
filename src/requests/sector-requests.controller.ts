@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query, Request } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -55,14 +56,23 @@ export class SectorRequestsController {
     );
   }
 
-  @Get('members/options')
+  @Get('assignee-options')
   @ApiOperation({
-    summary: 'Listar membros do setor para seleção de assignee/observer',
-    description: 'Retorna apenas membros ativos. Use para popular o select de atribuição.',
+    summary: 'Listar membros do setor para atribuição como responsável',
+    description:
+      'Retorna apenas usuários ativos vinculados ao setor. Use no select de responsáveis (assign).',
   })
   @ApiOkResponse({ type: [SectorMemberOptionDto] })
   @ApiNotFoundResponse({ description: 'Setor não encontrado' })
-  findMembersOptions(@Param('sectorId') sectorId: string) {
-    return this.sectorsService.findMembersOptions(sectorId);
+  @ApiForbiddenResponse({ description: 'Usuário não é membro deste setor' })
+  findAssigneeOptions(
+    @Param('sectorId') sectorId: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.sectorsService.findAssigneeOptions(
+      sectorId,
+      req.user.sub,
+      req.user.isGlobalAdmin,
+    );
   }
 }

@@ -64,8 +64,9 @@ export class MeController {
 
   @Get('requests')
   @ApiOperation({
-    summary: 'Solicitações criadas pelo usuário',
-    description: 'Retorna paginado as solicitações abertas pelo usuário autenticado.',
+    summary: 'Solicitações do usuário (criadas ou observadas)',
+    description:
+      'Retorna paginado as solicitações criadas pelo usuário autenticado ou em que ele é observador.',
   })
   @ApiPaginatedResponse(RequestResponseDto)
   findMyRequests(

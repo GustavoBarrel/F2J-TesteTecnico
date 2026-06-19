@@ -116,6 +116,12 @@ export class RequestHistoryEntryDto {
   @ApiPropertyOptional({ nullable: true })
   metadata: unknown;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Texto legível descrevendo a ação registrada no histórico',
+  })
+  description: string | null;
+
   @ApiProperty()
   createdAt: Date;
 

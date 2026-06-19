@@ -9,4 +9,10 @@ export class RequestPermissionsDto {
 
   @ApiProperty()
   canArchive: boolean;
+
+  @ApiProperty({
+    description:
+      'Pode gerenciar observadores: criador, gerente, admin, ou técnico responsável quando onlyManagerCanEdit=false',
+  })
+  canManageObservers: boolean;
 }

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateSectorDto } from './dto/create-sector.dto';
 import { UpdateSectorDto } from './dto/update-sector.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -159,7 +159,11 @@ export class SectorsService {
     return updatedSector;
   }
 
-  async findMembersOptions(sectorId: string): Promise<
+  async findAssigneeOptions(
+    sectorId: string,
+    userId: string,
+    isGlobalAdmin: boolean,
+  ): Promise<
     Array<{
       id: string;
       firstName: string;
@@ -169,6 +173,15 @@ export class SectorsService {
     }>
   > {
     await this.findOne(sectorId);
+
+    if (!isGlobalAdmin) {
+      const membership = await this.prisma.userSectorMembership.findFirst({
+        where: { sectorId, userId },
+      });
+      if (!membership) {
+        throw new ForbiddenException('Sem acesso a este setor');
+      }
+    }
 
     const memberships = await this.prisma.userSectorMembership.findMany({
       where: { sectorId, user: { isActive: true } },

@@ -37,6 +37,9 @@ import { GlobalAdminGuard } from 'src/auth/guards/global-admin.guard';
 import { CreateRequestMessageDto } from './dto/create-request-message.dto';
 import { ChangeRequestStatusDto } from './dto/change-request-status.dto';
 import { AssignRequestDto, SetObserversDto } from './dto/assign-request.dto';
+import { UsersService } from 'src/users/users.service';
+import { UserOptionDto } from 'src/users/dto/user-option.dto';
+import { ApiQuery } from '@nestjs/swagger';
 
 type AuthenticatedRequest = ExpressRequest & {
   user: { sub: string; isGlobalAdmin: boolean };
@@ -47,10 +50,17 @@ type AuthenticatedRequest = ExpressRequest & {
 @ApiUnauthorizedResponse({ description: 'Token inválido ou não informado' })
 @Controller('requests')
 export class RequestsController {
-  constructor(private readonly requestsService: RequestsService) {}
+  constructor(
+    private readonly requestsService: RequestsService,
+    private readonly usersService: UsersService,
+  ) {}
 
   @Post()
-  @ApiOperation({ summary: 'Criar solicitação' })
+  @ApiOperation({
+    summary: 'Criar solicitação',
+    description:
+      'Opcionalmente informe `observerIds` para incluir observadores na abertura.',
+  })
   @ApiCreatedResponse({ type: RequestResponseDto })
   @ApiNotFoundResponse({ description: 'Serviço ou setor não encontrado' })
   create(
@@ -76,6 +86,18 @@ export class RequestsController {
       req.user.isGlobalAdmin,
       query,
     );
+  }
+
+  @Get('observer-options')
+  @ApiOperation({
+    summary: 'Listar usuários para seleção de observador',
+    description:
+      'Retorna usuários ativos do sistema. Observadores podem ser qualquer usuário, não apenas membros do setor.',
+  })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiOkResponse({ type: [UserOptionDto] })
+  findObserverOptions(@Query('search') search?: string) {
+    return this.usersService.findObserverOptions(search);
   }
 
   @Get(':id')
@@ -136,7 +158,8 @@ export class RequestsController {
   @Patch(':id/observers')
   @ApiOperation({
     summary: 'Definir observadores de uma solicitação',
-    description: 'Substitui toda a lista atual de observadores. Envie `userIds: []` para remover todos.',
+    description:
+      'Substitui toda a lista atual. Permitido para criador, gerente, admin, ou técnico responsável quando o setor permite edição por técnico (onlyManagerCanEdit=false). Envie `userIds: []` para remover todos.',
   })
   @ApiOkResponse({ type: RequestResponseDto })
   @ApiForbiddenResponse({ description: 'Sem permissão para alterar observadores' })

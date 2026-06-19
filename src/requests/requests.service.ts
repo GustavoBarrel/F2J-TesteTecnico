@@ -31,6 +31,20 @@ import {
 import { FindAllRequestsQueryDto, FindSectorRequestsQueryDto } from './dto/find-all-requests-query.dto';
 import { AllowedStatus } from './dto/change-request-status.dto';
 import { AssignRequestDto, SetObserversDto } from './dto/assign-request.dto';
+import {
+  buildArchivedHistory,
+  buildAssignHistory,
+  buildCancelledHistory,
+  buildCreatedHistory,
+  buildFieldUpdatedHistory,
+  buildMessageSentHistory,
+  buildObserversHistory,
+  buildPriorityChangedHistory,
+  buildStatusChangedHistory,
+  extractHistoryDescription,
+  HistoryUserSummary,
+  usersByIds,
+} from './request-history.helpers';
 
 type MembershipWithSector = UserSectorMembership & {
   role: Role;
@@ -82,6 +96,15 @@ export class RequestsService {
       throw new NotFoundException('Setor não encontrado');
     }
 
+    const observerIds = createRequestDto.observerIds ?? [];
+    await this.validateActiveUserIds(observerIds);
+    const observerUsers = await this.fetchUserSummaries(observerIds);
+    const createdHistory = buildCreatedHistory(
+      createRequestDto.title,
+      sectorService.name,
+      observerUsers,
+    );
+
     const created = await this.prisma.$transaction(async (tx) => {
       const request = await tx.request.create({
         data: {
@@ -95,12 +118,20 @@ export class RequestsService {
         },
       });
 
+      if (observerIds.length > 0) {
+        await tx.requestObserver.createMany({
+          data: observerIds.map((observerId) => ({
+            requestId: request.id,
+            userId: observerId,
+          })),
+        });
+      }
+
       await tx.requestHistory.create({
         data: {
           requestId: request.id,
           userId,
-          action: RequestHistoryAction.CREATED,
-          toStatus: RequestStatus.NEW,
+          ...createdHistory,
         },
       });
 
@@ -116,7 +147,12 @@ export class RequestsService {
     query: FindAllRequestsQueryDto,
   ): Promise<PaginatedResponseDto<RequestResponseDto>> {
     return this.listRequests(
-      { createdById: userId },
+      {
+        OR: [
+          { createdById: userId },
+          { observers: { some: { userId } } },
+        ],
+      },
       userId,
       isGlobalAdmin,
       query,
@@ -400,6 +436,7 @@ export class RequestsService {
         canView: true,
         canEdit: true,
         canArchive: true,
+        canManageObservers: true,
       };
     }
 
@@ -428,7 +465,15 @@ export class RequestsService {
       (isManager ||
         (isTechnician && !!sector && !sector.onlyManagerCanArchive));
 
-    return { canView, canEdit, canArchive };
+    const canManageObservers =
+      isCreator ||
+      isManager ||
+      (isAssignee &&
+        isTechnician &&
+        !!sector &&
+        !sector.onlyManagerCanEdit);
+
+    return { canView, canEdit, canArchive, canManageObservers };
   }
 
   private toResponseDto(
@@ -546,10 +591,7 @@ export class RequestsService {
         ...message,
         author: user,
       })),
-      history: request.history.map(({ user, ...history }) => ({
-        ...history,
-        user,
-      })),
+      history: this.mapHistoryEntries(request.history),
     };
   }
 
@@ -599,9 +641,7 @@ export class RequestsService {
         data: {
           requestId,
           userId,
-          action: RequestHistoryAction.STATUS_CHANGED,
-          fromStatus: request.status,
-          toStatus: newStatus,
+          ...buildStatusChangedHistory(request.status, newStatus),
         },
       });
 
@@ -676,9 +716,21 @@ export class RequestsService {
       throw new ForbiddenException('Sem permissão para enviar mensagem');
     }
 
-    const message = await this.prisma.requestMessage.create({
-      data: { requestId, authorId: userId, content },
-      include: { user: { select: requestUserSelect } },
+    const message = await this.prisma.$transaction(async (tx) => {
+      const createdMessage = await tx.requestMessage.create({
+        data: { requestId, authorId: userId, content },
+        include: { user: { select: requestUserSelect } },
+      });
+
+      await tx.requestHistory.create({
+        data: {
+          requestId,
+          userId,
+          ...buildMessageSentHistory(createdMessage.id, content),
+        },
+      });
+
+      return createdMessage;
     });
 
     return {
@@ -696,6 +748,7 @@ export class RequestsService {
       fromStatus: string | null;
       toStatus: string | null;
       metadata: unknown;
+      description: string | null;
       createdAt: Date;
       user: { id: string; firstName: string; lastName: string; email: string };
     }>
@@ -715,7 +768,7 @@ export class RequestsService {
       include: { user: { select: requestUserSelect } },
     });
 
-    return history.map(({ user, ...entry }) => ({ ...entry, user }));
+    return this.mapHistoryEntries(history);
   }
 
   async update(
@@ -749,6 +802,8 @@ export class RequestsService {
       throw new ForbiddenException('Sem permissão para editar esta solicitação');
     }
 
+    const historyEntries = this.buildUpdateHistoryEntries(request, dto);
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const r = await tx.request.update({
         where: { id: requestId },
@@ -764,25 +819,15 @@ export class RequestsService {
         },
       });
 
-      if (dto.status !== undefined) {
+      for (const entry of historyEntries) {
         await tx.requestHistory.create({
           data: {
             requestId,
             userId,
-            action: RequestHistoryAction.STATUS_CHANGED,
-            fromStatus: request.status,
-            toStatus: dto.status,
+            ...entry,
           },
         });
       }
-
-      await tx.requestHistory.create({
-        data: {
-          requestId,
-          userId,
-          action: RequestHistoryAction.UPDATED,
-        },
-      });
 
       return r;
     });
@@ -832,6 +877,15 @@ export class RequestsService {
     }
 
     const hasAssigneesBefore = request.assignees.length > 0;
+    const previousAssigneeIds = request.assignees.map((assignee) => assignee.userId);
+    const assigneeUsers = await this.fetchUserSummaries([
+      ...new Set([...previousAssigneeIds, ...dto.userIds]),
+    ]);
+    const assignHistory = buildAssignHistory(
+      usersByIds(assigneeUsers, previousAssigneeIds),
+      usersByIds(assigneeUsers, dto.userIds),
+      hasAssigneesBefore,
+    );
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.requestAssignee.deleteMany({ where: { requestId } });
@@ -846,7 +900,7 @@ export class RequestsService {
         data: {
           requestId,
           userId,
-          action: hasAssigneesBefore ? RequestHistoryAction.REASSIGNED : RequestHistoryAction.ASSIGNED,
+          ...assignHistory,
         },
       });
 
@@ -877,9 +931,20 @@ export class RequestsService {
     }
 
     const permissions = this.resolvePermissions(request, userId, isGlobalAdmin, memberships);
-    if (!permissions.canEdit) {
+    if (!permissions.canManageObservers) {
       throw new ForbiddenException('Sem permissão para alterar observadores');
     }
+
+    await this.validateActiveUserIds(dto.userIds);
+
+    const previousObserverIds = request.observers.map((observer) => observer.userId);
+    const observerUsers = await this.fetchUserSummaries([
+      ...new Set([...previousObserverIds, ...dto.userIds]),
+    ]);
+    const observersHistory = buildObserversHistory(
+      usersByIds(observerUsers, previousObserverIds),
+      usersByIds(observerUsers, dto.userIds),
+    );
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.requestObserver.deleteMany({ where: { requestId } });
@@ -891,7 +956,11 @@ export class RequestsService {
       }
 
       await tx.requestHistory.create({
-        data: { requestId, userId, action: RequestHistoryAction.UPDATED },
+        data: {
+          requestId,
+          userId,
+          ...observersHistory,
+        },
       });
 
       return tx.request.findUniqueOrThrow({
@@ -940,9 +1009,7 @@ export class RequestsService {
         data: {
           requestId,
           userId,
-          action: RequestHistoryAction.CANCELLED,
-          fromStatus: request.status,
-          toStatus: RequestStatus.CANCELLED,
+          ...buildCancelledHistory(request.status),
         },
       });
 
@@ -986,9 +1053,7 @@ export class RequestsService {
         data: {
           requestId,
           userId,
-          action: RequestHistoryAction.ARCHIVED,
-          fromStatus: request.status,
-          toStatus: RequestStatus.ARCHIVED,
+          ...buildArchivedHistory(request.status),
         },
       });
 
@@ -996,5 +1061,100 @@ export class RequestsService {
     });
 
     return this.toResponseDto(updated, userId, isGlobalAdmin, memberships);
+  }
+
+  private mapHistoryEntries<
+    T extends {
+      metadata: unknown;
+      user: RequestUserSummary;
+    },
+  >(entries: T[]) {
+    return entries.map(({ user, metadata, ...entry }) => ({
+      ...entry,
+      metadata,
+      description: extractHistoryDescription(metadata),
+      user,
+    }));
+  }
+
+  private async fetchUserSummaries(
+    userIds: string[],
+  ): Promise<HistoryUserSummary[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    return this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: requestUserSelect,
+    });
+  }
+
+  private buildUpdateHistoryEntries(
+    request: Request,
+    dto: UpdateRequestDto,
+  ): Array<{
+    action: RequestHistoryAction;
+    fromStatus?: RequestStatus;
+    toStatus?: RequestStatus;
+    metadata: ReturnType<typeof buildFieldUpdatedHistory>['metadata'];
+  }> {
+    const entries: Array<{
+      action: RequestHistoryAction;
+      fromStatus?: RequestStatus;
+      toStatus?: RequestStatus;
+      metadata: ReturnType<typeof buildFieldUpdatedHistory>['metadata'];
+    }> = [];
+
+    if (dto.title !== undefined && dto.title !== request.title) {
+      entries.push(buildFieldUpdatedHistory('title', request.title, dto.title));
+    }
+
+    if (
+      dto.description !== undefined &&
+      dto.description !== request.description
+    ) {
+      entries.push(
+        buildFieldUpdatedHistory(
+          'description',
+          request.description,
+          dto.description,
+        ),
+      );
+    }
+
+    if (dto.priority !== undefined && dto.priority !== request.priority) {
+      entries.push(
+        buildPriorityChangedHistory(request.priority, dto.priority),
+      );
+    }
+
+    if (dto.status !== undefined && dto.status !== request.status) {
+      entries.push(buildStatusChangedHistory(request.status, dto.status));
+    }
+
+    return entries;
+  }
+
+  private async validateActiveUserIds(userIds: string[]): Promise<void> {
+    if (userIds.length === 0) {
+      return;
+    }
+
+    const uniqueIds = new Set(userIds);
+    if (uniqueIds.size !== userIds.length) {
+      throw new BadRequestException('IDs de usuário duplicados');
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds }, isActive: true },
+      select: { id: true },
+    });
+
+    if (users.length !== userIds.length) {
+      throw new BadRequestException(
+        'Um ou mais usuários não encontrados ou estão inativos',
+      );
+    }
   }
 }

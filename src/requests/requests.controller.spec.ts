@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RequestsController } from './requests.controller';
 import { RequestsService } from './requests.service';
+import { UsersService } from 'src/users/users.service';
 
 const mockRequestsService = {
   create: jest.fn(),
@@ -10,13 +11,20 @@ const mockRequestsService = {
   remove: jest.fn(),
 };
 
+const mockUsersService = {
+  findObserverOptions: jest.fn(),
+};
+
 describe('RequestsController', () => {
   let controller: RequestsController;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [RequestsController],
-      providers: [{ provide: RequestsService, useValue: mockRequestsService }],
+      providers: [
+        { provide: RequestsService, useValue: mockRequestsService },
+        { provide: UsersService, useValue: mockUsersService },
+      ],
     }).compile();
 
     controller = module.get<RequestsController>(RequestsController);
