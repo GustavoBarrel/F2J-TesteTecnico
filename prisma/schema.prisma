@@ -172,6 +172,48 @@ model RequestHistory {
   @@map("request_histories")
 }
 
+model pivotTable {
+  id         String    @id @default(uuid())
+  subjectType SubjectType
+  subjectId  String    @map("subject_id")
+  channel ChannelType
+  status PivotStatus
+  recipientId String    @map("recipient_id")
+  metadata   Json?
+  sentAt     DateTime? @map("sent_at")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("pivot_table")
+}
+
+
+
+enum SubjectType {
+  USER
+  SECTOR
+  REQUEST
+}
+
+enum ChannelType {
+  EMAIL
+  SMS
+  PUSH
+  WHATSAPP
+  IN_APP
+}
+
+enum PivotStatus {
+  PENDING
+  PROCESSING
+  SENT
+  DELIVERED
+  FAILED
+  RETRYING
+  CANCELLED
+  EXPIRED
+}
+
 enum RoleSlug {
   MANAGER
   TECHNICIAN

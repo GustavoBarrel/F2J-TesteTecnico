@@ -11,6 +11,9 @@ export class RequestUserSummaryDto {
   id: string;
 
   @ApiProperty()
+  username: string;
+
+  @ApiProperty()
   firstName: string;
 
   @ApiProperty()

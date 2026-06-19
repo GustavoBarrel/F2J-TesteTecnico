@@ -53,6 +53,7 @@ type MembershipWithSector = UserSectorMembership & {
 
 type RequestUserSummary = {
   id: string;
+  username: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -65,6 +66,7 @@ type RequestWithAccess = Request & {
 
 const requestUserSelect = {
   id: true,
+  username: true,
   firstName: true,
   lastName: true,
   email: true,
@@ -435,6 +437,7 @@ export class RequestsService {
       return {
         canView: true,
         canEdit: true,
+        canMessage: true,
         canArchive: true,
         canManageObservers: true,
       };
@@ -465,15 +468,11 @@ export class RequestsService {
       (isManager ||
         (isTechnician && !!sector && !sector.onlyManagerCanArchive));
 
-    const canManageObservers =
-      isCreator ||
-      isManager ||
-      (isAssignee &&
-        isTechnician &&
-        !!sector &&
-        !sector.onlyManagerCanEdit);
+    const canManageObservers = isCreator || isManager || isAssignee;
 
-    return { canView, canEdit, canArchive, canManageObservers };
+    const canMessage = isCreator || isManager || isAssignee;
+
+    return { canView, canEdit, canMessage, canArchive, canManageObservers };
   }
 
   private toResponseDto(
@@ -530,12 +529,7 @@ export class RequestsService {
           },
         },
         createdBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
+          select: requestUserSelect,
         },
         assignees: {
           include: {
@@ -660,7 +654,7 @@ export class RequestsService {
       id: string;
       content: string;
       createdAt: Date;
-      author: { id: string; firstName: string; lastName: string; email: string };
+      author: { id: string; username: string; firstName: string; lastName: string; email: string };
     }>
   > {
     const memberships = isGlobalAdmin ? [] : await this.getMemberships(userId);
@@ -689,7 +683,7 @@ export class RequestsService {
     id: string;
     content: string;
     createdAt: Date;
-    author: { id: string; firstName: string; lastName: string; email: string };
+    author: { id: string; username: string; firstName: string; lastName: string; email: string };
   }> {
     const memberships = isGlobalAdmin ? [] : await this.getMemberships(userId);
 
@@ -712,7 +706,7 @@ export class RequestsService {
       memberships,
     );
 
-    if (!permissions.canEdit) {
+    if (!permissions.canMessage) {
       throw new ForbiddenException('Sem permissão para enviar mensagem');
     }
 

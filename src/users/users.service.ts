@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -11,6 +11,8 @@ import {
   DEFAULT_PAGE,
 } from 'src/common/dto/pagination-query.dto';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
+import { ResetPasswordResponseDto } from './dto/reset-password-response.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 const SALT_ROUNDS = 10;
 
@@ -164,5 +166,30 @@ export class UsersService {
       orderBy: { firstName: 'asc' },
       take: 50,
     });
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<ResetPasswordResponseDto> {
+    const UniqueIdentifier = resetPasswordDto.username ?? resetPasswordDto.email;
+
+    if (!UniqueIdentifier) {
+      throw new BadRequestException('Identificador de usuário não encontrado');
+    }
+
+    const userExists = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+        { username: UniqueIdentifier },
+        { email: UniqueIdentifier },
+        ],
+      },
+    });
+
+    if (!userExists) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
+
+    // gera codigo e envia
+
+    return { message: 'Código de redefinição de senha enviado com sucesso' };
   }
 }

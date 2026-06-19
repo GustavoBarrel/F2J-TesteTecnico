@@ -7,12 +7,18 @@ export class RequestPermissionsDto {
   @ApiProperty()
   canEdit: boolean;
 
+  @ApiProperty({
+    description:
+      'Pode enviar mensagens: criador, gerente, admin ou responsável atribuído',
+  })
+  canMessage: boolean;
+
   @ApiProperty()
   canArchive: boolean;
 
   @ApiProperty({
     description:
-      'Pode gerenciar observadores: criador, gerente, admin, ou técnico responsável quando onlyManagerCanEdit=false',
+      'Pode gerenciar observadores: criador, gerente, admin ou responsável atribuído',
   })
   canManageObservers: boolean;
 }

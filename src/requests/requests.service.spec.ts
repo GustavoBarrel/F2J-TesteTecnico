@@ -71,16 +71,17 @@ const membership = (sector: Sector, role: Role) => ({
 type RequestFixture = Request & {
   assignees?: Array<{
     userId: string;
-    user?: { id: string; firstName: string; lastName: string; email: string };
+    user?: { id: string; username: string; firstName: string; lastName: string; email: string };
   }>;
   observers?: Array<{
     userId: string;
-    user?: { id: string; firstName: string; lastName: string; email: string };
+    user?: { id: string; username: string; firstName: string; lastName: string; email: string };
   }>;
 };
 
 const userSummary = (id: string) => ({
   id,
+  username: `user-${id}`,
   firstName: 'User',
   lastName: id,
   email: `${id}@email.com`,
@@ -223,7 +224,7 @@ describe('RequestsService', () => {
     it('cria solicitação com observadores na abertura', async () => {
       const created = request({ createdById: userId });
       mockPrisma.user.findMany.mockResolvedValue([
-        { id: otherUserId, firstName: 'User', lastName: otherUserId, email: `${otherUserId}@email.com` },
+        { id: otherUserId, username: `user-${otherUserId}`, firstName: 'User', lastName: otherUserId, email: `${otherUserId}@email.com` },
       ]);
       mockPrisma.$transaction.mockImplementation(async (fn) => {
         mockPrisma.request.create.mockResolvedValue(created);
@@ -280,6 +281,7 @@ describe('RequestsService', () => {
       expect(result.data[0].permissions).toEqual({
         canView: true,
         canEdit: true,
+        canMessage: true,
         canArchive: true,
         canManageObservers: true,
       });
@@ -311,6 +313,7 @@ describe('RequestsService', () => {
       expect(result.data[0].permissions).toEqual({
         canView: true,
         canEdit: false,
+        canMessage: true,
         canArchive: false,
         canManageObservers: true,
       });
@@ -346,6 +349,7 @@ describe('RequestsService', () => {
       expect(result.data[0].permissions).toEqual({
         canView: true,
         canEdit: true,
+        canMessage: true,
         canArchive: true,
         canManageObservers: true,
       });
@@ -392,6 +396,7 @@ describe('RequestsService', () => {
       expect(result.data[0].permissions).toEqual({
         canView: true,
         canEdit: true,
+        canMessage: false,
         canArchive: true,
         canManageObservers: false,
       });
@@ -435,8 +440,9 @@ describe('RequestsService', () => {
       expect(result.data[0].permissions).toEqual({
         canView: true,
         canEdit: false,
+        canMessage: true,
         canArchive: false,
-        canManageObservers: false,
+        canManageObservers: true,
       });
     });
 
@@ -480,6 +486,7 @@ describe('RequestsService', () => {
       expect(result.permissions).toEqual({
         canView: true,
         canEdit: true,
+        canMessage: true,
         canArchive: true,
         canManageObservers: true,
       });
@@ -527,8 +534,9 @@ describe('RequestsService', () => {
       expect(result.permissions).toEqual({
         canView: true,
         canEdit: false,
+        canMessage: true,
         canArchive: false,
-        canManageObservers: false,
+        canManageObservers: true,
       });
     });
 
@@ -864,17 +872,24 @@ describe('RequestsService', () => {
       ).resolves.toBeDefined();
     });
 
-    it('responsável em setor fechado (onlyManagerCanEdit=true) não pode definir observadores', async () => {
+    it('responsável em setor fechado (onlyManagerCanEdit=true) pode definir observadores', async () => {
       mockPrisma.userSectorMembership.findMany.mockResolvedValue([
         membership(baseSector, technicianRole),
       ]);
       mockPrisma.request.findUnique.mockResolvedValue(
         request({ assignees: [{ userId, user: userSummary(userId) }] }),
       );
+      mockPrisma.user.findMany.mockResolvedValue([{ id: otherUserId }]);
+      setupTransaction(
+        request({
+          assignees: [{ userId, user: userSummary(userId) }],
+          observers: [{ userId: otherUserId, user: userSummary(otherUserId) }],
+        }),
+      );
 
       await expect(
         service.setObservers('request-1', userId, false, { userIds: [otherUserId] }),
-      ).rejects.toThrow(ForbiddenException);
+      ).resolves.toBeDefined();
     });
 
     it('observer sem ser criador ou responsável recebe ForbiddenException', async () => {
@@ -926,9 +941,14 @@ describe('RequestsService', () => {
       );
     });
 
-    it('technician com canEdit pode enviar mensagem (setor aberto)', async () => {
+    it('technician responsável em setor aberto pode enviar mensagem', async () => {
       mockPrisma.userSectorMembership.findMany.mockResolvedValue([membership(openSector, technicianRole)]);
-      mockPrisma.request.findUnique.mockResolvedValue(request({ sectorId: openSector.id }));
+      mockPrisma.request.findUnique.mockResolvedValue(
+        request({
+          sectorId: openSector.id,
+          assignees: [{ userId, user: userSummary(userId) }],
+        }),
+      );
       setupTransaction(messageResult);
       mockPrisma.requestMessage.create.mockResolvedValue(messageResult);
 
@@ -937,10 +957,34 @@ describe('RequestsService', () => {
       ).resolves.toBeDefined();
     });
 
-    it('technician sem canEdit recebe ForbiddenException', async () => {
+    it('technician responsável em setor fechado pode enviar mensagem', async () => {
       mockPrisma.userSectorMembership.findMany.mockResolvedValue([membership(baseSector, technicianRole)]);
       mockPrisma.request.findUnique.mockResolvedValue(
         request({ assignees: [{ userId, user: userSummary(userId) }] }),
+      );
+      setupTransaction(messageResult);
+      mockPrisma.requestMessage.create.mockResolvedValue(messageResult);
+
+      await expect(
+        service.sendMessage('request-1', userId, false, 'Olá'),
+      ).resolves.toBeDefined();
+    });
+
+    it('criador sem vínculo pode enviar mensagem', async () => {
+      mockPrisma.userSectorMembership.findMany.mockResolvedValue([]);
+      mockPrisma.request.findUnique.mockResolvedValue(request({ createdById: userId }));
+      setupTransaction(messageResult);
+      mockPrisma.requestMessage.create.mockResolvedValue(messageResult);
+
+      await expect(
+        service.sendMessage('request-1', userId, false, 'Olá'),
+      ).resolves.toBeDefined();
+    });
+
+    it('technician na fila sem atribuição recebe ForbiddenException', async () => {
+      mockPrisma.userSectorMembership.findMany.mockResolvedValue([membership(openSector, technicianRole)]);
+      mockPrisma.request.findUnique.mockResolvedValue(
+        request({ sectorId: openSector.id, assignees: [] }),
       );
 
       await expect(
@@ -1015,6 +1059,7 @@ describe('RequestsService', () => {
       expect(result.data[0].permissions).toEqual({
         canView: false,
         canEdit: false,
+        canMessage: false,
         canArchive: false,
         canManageObservers: false,
       });
@@ -1036,8 +1081,9 @@ describe('RequestsService', () => {
       expect(result.data[0].permissions).toEqual({
         canView: true,
         canEdit: false,
+        canMessage: true,
         canArchive: false,
-        canManageObservers: false,
+        canManageObservers: true,
       });
     });
 
@@ -1057,6 +1103,7 @@ describe('RequestsService', () => {
       expect(result.data[0].permissions).toEqual({
         canView: false,
         canEdit: false,
+        canMessage: false,
         canArchive: false,
         canManageObservers: false,
       });
@@ -1073,6 +1120,7 @@ describe('RequestsService', () => {
       expect(result.data[0].permissions).toEqual({
         canView: true,
         canEdit: false,
+        canMessage: true,
         canArchive: false,
         canManageObservers: true,
       });
@@ -1089,6 +1137,7 @@ describe('RequestsService', () => {
       expect(result.data[0].permissions).toEqual({
         canView: true,
         canEdit: false,
+        canMessage: false,
         canArchive: false,
         canManageObservers: false,
       });
