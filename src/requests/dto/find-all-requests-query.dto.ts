@@ -36,3 +36,4 @@ export class FindSectorRequestsQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({ enum: ['queue'], description: 'queue = apenas solicitações sem atribuído' })
   scope?: 'queue';
 }
+

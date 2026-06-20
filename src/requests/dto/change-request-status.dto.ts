@@ -5,7 +5,7 @@ import { RequestStatus } from '../../../generated/prisma/client';
 const ALLOWED_STATUSES = [
   RequestStatus.PENDING,
   RequestStatus.IN_PROGRESS,
-  RequestStatus.COMPLETED,
+  RequestStatus.SOLVED,
 ] as const;
 
 export type AllowedStatus = (typeof ALLOWED_STATUSES)[number];

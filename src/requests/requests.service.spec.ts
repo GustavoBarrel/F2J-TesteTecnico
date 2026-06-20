@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RequestsService } from './requests.service';
+import { RequestAutoCompleteSettingsService } from './request-auto-complete-settings.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { SectorsService } from 'src/sectors/sectors.service';
 import {
@@ -98,6 +99,7 @@ const request = (overrides: Partial<RequestFixture> = {}): RequestFixture => ({
   createdById: otherUserId,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  solvedAt: null,
   assignees: [],
   observers: [],
   ...overrides,
@@ -128,6 +130,7 @@ const mockPrisma = {
     findUniqueOrThrow: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   },
   requestHistory: {
     findMany: jest.fn(),
@@ -135,6 +138,7 @@ const mockPrisma = {
   },
   requestMessage: {
     findMany: jest.fn(),
+    count: jest.fn(),
     create: jest.fn(),
   },
   requestAssignee: {
@@ -150,6 +154,7 @@ const mockPrisma = {
   },
   user: {
     findMany: jest.fn(),
+    findFirst: jest.fn(),
   },
   sectorService: {
     findUnique: jest.fn(),
@@ -161,11 +166,20 @@ const mockSectorsService = {
   findOne: jest.fn(),
 };
 
+const mockAutoCompleteSettingsService = {
+  getDuration: jest.fn().mockResolvedValue({
+    cutoff: new Date('2026-01-01T00:00:00.000Z'),
+    value: 7,
+    unit: 'days',
+  }),
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function setupTransaction(returnValue: unknown) {
   mockPrisma.$transaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => Promise<unknown>) => {
     mockPrisma.request.update.mockResolvedValue(returnValue);
+    mockPrisma.request.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.request.findUniqueOrThrow.mockResolvedValue(returnValue);
     mockPrisma.requestHistory.create.mockResolvedValue({});
     mockPrisma.requestMessage.create.mockResolvedValue(returnValue);
@@ -188,6 +202,10 @@ describe('RequestsService', () => {
         RequestsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: SectorsService, useValue: mockSectorsService },
+        {
+          provide: RequestAutoCompleteSettingsService,
+          useValue: mockAutoCompleteSettingsService,
+        },
       ],
     }).compile();
 
@@ -284,6 +302,8 @@ describe('RequestsService', () => {
         canMessage: true,
         canArchive: true,
         canManageObservers: true,
+        canChangeStatus: true,
+        canReviewSolution: false,
       });
     });
 
@@ -316,6 +336,8 @@ describe('RequestsService', () => {
         canMessage: true,
         canArchive: false,
         canManageObservers: true,
+        canChangeStatus: false,
+        canReviewSolution: false,
       });
     });
 
@@ -352,6 +374,8 @@ describe('RequestsService', () => {
         canMessage: true,
         canArchive: true,
         canManageObservers: true,
+        canChangeStatus: true,
+        canReviewSolution: false,
       });
     });
 
@@ -399,6 +423,8 @@ describe('RequestsService', () => {
         canMessage: false,
         canArchive: true,
         canManageObservers: false,
+        canChangeStatus: true,
+        canReviewSolution: false,
       });
     });
 
@@ -443,6 +469,8 @@ describe('RequestsService', () => {
         canMessage: true,
         canArchive: false,
         canManageObservers: true,
+        canChangeStatus: true,
+        canReviewSolution: false,
       });
     });
 
@@ -489,6 +517,8 @@ describe('RequestsService', () => {
         canMessage: true,
         canArchive: true,
         canManageObservers: true,
+        canChangeStatus: true,
+        canReviewSolution: false,
       });
     });
 
@@ -523,7 +553,7 @@ describe('RequestsService', () => {
       expect(result.permissions.canView).toBe(true);
     });
 
-    it('technician atribuído em setor fechado pode ver mas não editar', async () => {
+    it('technician atribuído em setor fechado pode ver e alterar status, mas não editar', async () => {
       mockPrisma.userSectorMembership.findMany.mockResolvedValue([membership(baseSector, technicianRole)]);
       mockPrisma.request.findUnique.mockResolvedValue(
         requestWithRelations({ assignees: [{ userId, user: userSummary(userId) }] }),
@@ -537,6 +567,8 @@ describe('RequestsService', () => {
         canMessage: true,
         canArchive: false,
         canManageObservers: true,
+        canChangeStatus: true,
+        canReviewSolution: false,
       });
     });
 
@@ -596,10 +628,24 @@ describe('RequestsService', () => {
       ).resolves.toBeDefined();
     });
 
-    it('technician sem canEdit recebe ForbiddenException', async () => {
+    it('technician responsável em setor fechado pode alterar status', async () => {
       mockPrisma.userSectorMembership.findMany.mockResolvedValue([membership(baseSector, technicianRole)]);
       mockPrisma.request.findUnique.mockResolvedValue(
         request({ assignees: [{ userId, user: userSummary(userId) }] }),
+      );
+      setupTransaction(
+        request({ status: RequestStatus.SOLVED, assignees: [{ userId, user: userSummary(userId) }] }),
+      );
+
+      await expect(
+        service.changeStatus('request-1', userId, false, RequestStatus.SOLVED),
+      ).resolves.toBeDefined();
+    });
+
+    it('technician em setor fechado sem ser responsável não altera status', async () => {
+      mockPrisma.userSectorMembership.findMany.mockResolvedValue([membership(baseSector, technicianRole)]);
+      mockPrisma.request.findUnique.mockResolvedValue(
+        request({ assignees: [{ userId: otherUserId, user: userSummary(otherUserId) }] }),
       );
 
       await expect(
@@ -607,24 +653,37 @@ describe('RequestsService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('request CANCELLED não pode ter status alterado', async () => {
+    it('admin pode alterar status de request CANCELLED', async () => {
       mockPrisma.request.findUnique.mockResolvedValue(
         request({ status: RequestStatus.CANCELLED }),
       );
+      setupTransaction(request({ status: RequestStatus.IN_PROGRESS }));
 
       await expect(
         service.changeStatus('request-1', userId, true, RequestStatus.IN_PROGRESS),
-      ).rejects.toThrow(BadRequestException);
+      ).resolves.toBeDefined();
     });
 
-    it('request ARCHIVED não pode ter status alterado', async () => {
+    it('admin pode alterar status de request ARCHIVED', async () => {
       mockPrisma.request.findUnique.mockResolvedValue(
         request({ status: RequestStatus.ARCHIVED }),
       );
+      setupTransaction(request({ status: RequestStatus.IN_PROGRESS }));
 
       await expect(
         service.changeStatus('request-1', userId, true, RequestStatus.IN_PROGRESS),
-      ).rejects.toThrow(BadRequestException);
+      ).resolves.toBeDefined();
+    });
+
+    it('technician sem canEdit não altera status de request CANCELLED', async () => {
+      mockPrisma.userSectorMembership.findMany.mockResolvedValue([membership(baseSector, technicianRole)]);
+      mockPrisma.request.findUnique.mockResolvedValue(
+        request({ status: RequestStatus.CANCELLED, assignees: [{ userId, user: userSummary(userId) }] }),
+      );
+
+      await expect(
+        service.changeStatus('request-1', userId, false, RequestStatus.IN_PROGRESS),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -649,6 +708,16 @@ describe('RequestsService', () => {
       await expect(
         service.update('request-1', userId, false, { title: 'Novo título' }),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('request COMPLETED não pode ser editado', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        request({ status: RequestStatus.COMPLETED }),
+      );
+
+      await expect(
+        service.update('request-1', userId, true, { title: 'Novo título' }),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('request CANCELLED não pode ser editado', async () => {
@@ -715,6 +784,12 @@ describe('RequestsService', () => {
       );
 
       await expect(service.cancel('request-1', userId, false)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('request COMPLETED não pode ser cancelado', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(request({ status: RequestStatus.COMPLETED }));
+
+      await expect(service.cancel('request-1', userId, true)).rejects.toThrow(BadRequestException);
     });
 
     it('request já CANCELLED lança BadRequestException', async () => {
@@ -1004,6 +1079,196 @@ describe('RequestsService', () => {
     });
   });
 
+  // ─── reviewSolution ───────────────────────────────────────────────────────
+
+  describe('reviewSolution', () => {
+    it('requerente aprova solução e status vai para COMPLETED', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        request({ status: RequestStatus.SOLVED, createdById: userId }),
+      );
+      setupTransaction(request({ status: RequestStatus.COMPLETED, createdById: userId }));
+
+      const result = await service.reviewSolution('request-1', userId, false, true);
+
+      expect(result.status).toBe(RequestStatus.COMPLETED);
+      expect(mockPrisma.requestHistory.create).toHaveBeenCalled();
+    });
+
+    it('requerente rejeita solução e status volta para IN_PROGRESS', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        request({ status: RequestStatus.SOLVED, createdById: userId }),
+      );
+      setupTransaction(request({ status: RequestStatus.IN_PROGRESS, createdById: userId }));
+
+      const result = await service.reviewSolution('request-1', userId, false, false);
+
+      expect(result.status).toBe(RequestStatus.IN_PROGRESS);
+    });
+
+    it('usuário que não é requerente recebe ForbiddenException', async () => {
+      mockPrisma.userSectorMembership.findMany.mockResolvedValue([]);
+      mockPrisma.request.findUnique.mockResolvedValue(
+        request({ status: RequestStatus.SOLVED, createdById: otherUserId }),
+      );
+
+      await expect(
+        service.reviewSolution('request-1', userId, false, true),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('status diferente de SOLVED lança BadRequestException', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        request({ status: RequestStatus.IN_PROGRESS, createdById: userId }),
+      );
+
+      await expect(
+        service.reviewSolution('request-1', userId, false, true),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ─── autoCompleteExpiredSolvedRequests ────────────────────────────────────
+
+  describe('autoCompleteExpiredSolvedRequests', () => {
+    it('retorna 0 quando não há solicitações expiradas', async () => {
+      mockPrisma.request.findMany.mockResolvedValue([]);
+
+      await expect(service.autoCompleteExpiredSolvedRequests()).resolves.toBe(0);
+    });
+
+    it('conclui solicitações SOLVED expiradas e grava histórico', async () => {
+      mockPrisma.request.findMany.mockResolvedValue([
+        { id: 'request-1', createdById: otherUserId },
+      ]);
+      mockPrisma.user.findFirst.mockResolvedValue({ id: 'admin-1' });
+      setupTransaction(request({ status: RequestStatus.COMPLETED }));
+
+      const count = await service.autoCompleteExpiredSolvedRequests();
+
+      expect(count).toBe(1);
+      expect(mockPrisma.request.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            id: 'request-1',
+            status: RequestStatus.SOLVED,
+          },
+          data: {
+            status: RequestStatus.COMPLETED,
+            solvedAt: null,
+          },
+        }),
+      );
+      expect(mockPrisma.requestHistory.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            requestId: 'request-1',
+            userId: 'admin-1',
+            fromStatus: RequestStatus.SOLVED,
+            toStatus: RequestStatus.COMPLETED,
+          }),
+        }),
+      );
+    });
+
+    it('usa createdById no histórico quando não há admin global', async () => {
+      mockPrisma.request.findMany.mockResolvedValue([
+        { id: 'request-1', createdById: otherUserId },
+      ]);
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      setupTransaction(request({ status: RequestStatus.COMPLETED }));
+
+      await service.autoCompleteExpiredSolvedRequests();
+
+      expect(mockPrisma.requestHistory.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: otherUserId,
+          }),
+        }),
+      );
+    });
+
+    it('usa duração configurada no settings service', async () => {
+      const cutoff = new Date('2026-01-01T00:00:00.000Z');
+      mockAutoCompleteSettingsService.getDuration.mockResolvedValue({
+        cutoff,
+        value: 5,
+        unit: 'minutes',
+      });
+
+      mockPrisma.request.findMany.mockResolvedValue([]);
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+
+      await service.autoCompleteExpiredSolvedRequests();
+
+      expect(mockAutoCompleteSettingsService.getDuration).toHaveBeenCalled();
+      expect(mockPrisma.request.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: RequestStatus.SOLVED,
+            solvedAt: { lte: cutoff },
+          }),
+        }),
+      );
+    });
+
+    it('não conclui se o chamado já saiu de SOLVED', async () => {
+      mockPrisma.request.findMany.mockResolvedValue([
+        { id: 'request-1', createdById: otherUserId },
+      ]);
+      mockPrisma.user.findFirst.mockResolvedValue({ id: 'admin-1' });
+      mockPrisma.$transaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => Promise<unknown>) => {
+        mockPrisma.request.updateMany.mockResolvedValue({ count: 0 });
+        return fn(mockPrisma as never);
+      });
+
+      const count = await service.autoCompleteExpiredSolvedRequests();
+
+      expect(count).toBe(0);
+      expect(mockPrisma.requestHistory.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── changeStatus solvedAt ─────────────────────────────────────────────────
+
+  describe('changeStatus - solvedAt', () => {
+    it('define solvedAt ao mudar para SOLVED', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        request({ status: RequestStatus.IN_PROGRESS }),
+      );
+      setupTransaction(request({ status: RequestStatus.SOLVED }));
+
+      await service.changeStatus('request-1', userId, true, RequestStatus.SOLVED);
+
+      expect(mockPrisma.request.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: RequestStatus.SOLVED,
+            solvedAt: expect.any(Date),
+          }),
+        }),
+      );
+    });
+
+    it('limpa solvedAt ao sair de SOLVED', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        request({ status: RequestStatus.SOLVED, solvedAt: new Date() }),
+      );
+      setupTransaction(request({ status: RequestStatus.IN_PROGRESS, solvedAt: null }));
+
+      await service.changeStatus('request-1', userId, true, RequestStatus.IN_PROGRESS);
+
+      expect(mockPrisma.request.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: RequestStatus.IN_PROGRESS,
+            solvedAt: null,
+          }),
+        }),
+      );
+    });
+  });
+
   // ─── findMessages ─────────────────────────────────────────────────────────
 
   describe('findMessages - controle de acesso', () => {
@@ -1011,10 +1276,14 @@ describe('RequestsService', () => {
       mockPrisma.userSectorMembership.findMany.mockResolvedValue([membership(baseSector, managerRole)]);
       mockPrisma.request.findUnique.mockResolvedValue(request());
       mockPrisma.requestMessage.findMany.mockResolvedValue([]);
+      mockPrisma.requestMessage.count.mockResolvedValue(0);
 
       await expect(
-        service.findMessages('request-1', userId, false),
-      ).resolves.toEqual([]);
+        service.findMessages('request-1', userId, false, {}),
+      ).resolves.toEqual({
+        data: [],
+        meta: { page: 1, limit: 10, total: 0, totalPages: 0 },
+      });
     });
 
     it('quem não pode ver o request recebe ForbiddenException', async () => {
@@ -1024,7 +1293,7 @@ describe('RequestsService', () => {
       );
 
       await expect(
-        service.findMessages('request-1', userId, false),
+        service.findMessages('request-1', userId, false, {}),
       ).rejects.toThrow(ForbiddenException);
     });
   });
@@ -1062,6 +1331,8 @@ describe('RequestsService', () => {
         canMessage: false,
         canArchive: false,
         canManageObservers: false,
+        canChangeStatus: false,
+        canReviewSolution: false,
       });
     });
 
@@ -1084,6 +1355,8 @@ describe('RequestsService', () => {
         canMessage: true,
         canArchive: false,
         canManageObservers: true,
+        canChangeStatus: true,
+        canReviewSolution: false,
       });
     });
 
@@ -1106,6 +1379,8 @@ describe('RequestsService', () => {
         canMessage: false,
         canArchive: false,
         canManageObservers: false,
+        canChangeStatus: false,
+        canReviewSolution: false,
       });
     });
 
@@ -1123,6 +1398,8 @@ describe('RequestsService', () => {
         canMessage: true,
         canArchive: false,
         canManageObservers: true,
+        canChangeStatus: false,
+        canReviewSolution: false,
       });
     });
 
@@ -1140,6 +1417,8 @@ describe('RequestsService', () => {
         canMessage: false,
         canArchive: false,
         canManageObservers: false,
+        canChangeStatus: false,
+        canReviewSolution: false,
       });
     });
   });

@@ -21,4 +21,16 @@ export class RequestPermissionsDto {
       'Pode gerenciar observadores: criador, gerente, admin ou responsável atribuído',
   })
   canManageObservers: boolean;
+
+  @ApiProperty({
+    description:
+      'Pode alterar status: admin global, usuário com canEdit, ou responsável atribuído em setor com onlyManagerCanEdit (enquanto o chamado não estiver bloqueado).',
+  })
+  canChangeStatus: boolean;
+
+  @ApiProperty({
+    description:
+      'Pode aprovar ou rejeitar a solução quando o chamado está com status SOLVED. Disponível para o requerente (criador) ou admin global.',
+  })
+  canReviewSolution: boolean;
 }

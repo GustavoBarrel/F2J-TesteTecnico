@@ -21,6 +21,7 @@ import {
 } from './dto/request-response.dto';
 import { Request as ExpressRequest } from 'express';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
+import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -37,6 +38,7 @@ import { GlobalAdminGuard } from 'src/auth/guards/global-admin.guard';
 import { CreateRequestMessageDto } from './dto/create-request-message.dto';
 import { ChangeRequestStatusDto } from './dto/change-request-status.dto';
 import { AssignRequestDto, SetObserversDto } from './dto/assign-request.dto';
+import { ReviewRequestSolutionDto } from './dto/review-request-solution.dto';
 import { UsersService } from 'src/users/users.service';
 import { UserOptionDto } from 'src/users/dto/user-option.dto';
 import { ApiQuery } from '@nestjs/swagger';
@@ -119,7 +121,8 @@ export class RequestsController {
   @Patch(':id/status')
   @ApiOperation({
     summary: 'Alterar status de uma solicitação',
-    description: 'Valores permitidos: `PENDING`, `IN_PROGRESS`, `COMPLETED`. Para cancelar use `PATCH /:id/cancel`.',
+    description:
+      'Valores permitidos: `PENDING`, `IN_PROGRESS`, `SOLVED`. Use `SOLVED` para encaminhar ao requerente revisar a solução. Para cancelar use `PATCH /:id/cancel`.',
   })
   @ApiOkResponse({ type: RequestResponseDto })
   @ApiForbiddenResponse({ description: 'Sem permissão para alterar o status' })
@@ -135,6 +138,29 @@ export class RequestsController {
       req.user.sub,
       req.user.isGlobalAdmin,
       body.status,
+    );
+  }
+
+  @Patch(':id/solution-review')
+  @ApiOperation({
+    summary: 'Aprovar ou rejeitar solução do chamado',
+    description:
+      'Disponível quando o status é `SOLVED`. O requerente (criador) ou admin global pode aprovar (`approved: true` → `COMPLETED`) ou rejeitar (`approved: false` → `IN_PROGRESS`).',
+  })
+  @ApiOkResponse({ type: RequestResponseDto })
+  @ApiForbiddenResponse({ description: 'Sem permissão para revisar a solução' })
+  @ApiNotFoundResponse({ description: 'Solicitação não encontrada' })
+  @ApiBadRequestResponse({ description: 'Solicitação não está com status SOLVED' })
+  reviewSolution(
+    @Param('id') id: string,
+    @Body() body: ReviewRequestSolutionDto,
+    @Request() req: AuthenticatedRequest,
+  ): Promise<RequestResponseDto> {
+    return this.requestsService.reviewSolution(
+      id,
+      req.user.sub,
+      req.user.isGlobalAdmin,
+      body.approved,
     );
   }
 
@@ -203,15 +229,24 @@ export class RequestsController {
   }
 
   @Get(':id/messages')
-  @ApiOperation({ summary: 'Listar mensagens de uma solicitação' })
-  @ApiOkResponse({ type: [RequestMessageResponseDto] })
+  @ApiOperation({
+    summary: 'Listar mensagens de uma solicitação',
+    description: 'Retorna as mensagens do chamado de forma paginada para suportar carregamento incremental no front-end.',
+  })
+  @ApiPaginatedResponse(RequestMessageResponseDto)
   @ApiForbiddenResponse({ description: 'Sem permissão para visualizar' })
   @ApiNotFoundResponse({ description: 'Solicitação não encontrada' })
   findMessages(
     @Param('id') id: string,
+    @Query() query: PaginationQueryDto,
     @Request() req: AuthenticatedRequest,
-  ) {
-    return this.requestsService.findMessages(id, req.user.sub, req.user.isGlobalAdmin);
+  ): Promise<PaginatedResponseDto<RequestMessageResponseDto>> {
+    return this.requestsService.findMessages(
+      id,
+      req.user.sub,
+      req.user.isGlobalAdmin,
+      query,
+    );
   }
 
   @Post(':id/messages')

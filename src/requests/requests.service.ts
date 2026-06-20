@@ -16,6 +16,7 @@ import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import {
   DEFAULT_LIMIT,
   DEFAULT_PAGE,
+  PaginationQueryDto,
 } from 'src/common/dto/pagination-query.dto';
 import {
   Prisma,
@@ -28,12 +29,17 @@ import {
   Sector,
   UserSectorMembership,
 } from '../../generated/prisma/client';
-import { FindAllRequestsQueryDto, FindSectorRequestsQueryDto } from './dto/find-all-requests-query.dto';
+import {
+  FindAllRequestsQueryDto,
+  FindSectorRequestsQueryDto,
+} from './dto/find-all-requests-query.dto';
 import { AllowedStatus } from './dto/change-request-status.dto';
 import { AssignRequestDto, SetObserversDto } from './dto/assign-request.dto';
+import { RequestAutoCompleteSettingsService } from './request-auto-complete-settings.service';
 import {
   buildArchivedHistory,
   buildAssignHistory,
+  buildAutoCompletedHistory,
   buildCancelledHistory,
   buildCreatedHistory,
   buildFieldUpdatedHistory,
@@ -43,6 +49,7 @@ import {
   buildStatusChangedHistory,
   extractHistoryDescription,
   HistoryUserSummary,
+  historyMetadata,
   usersByIds,
 } from './request-history.helpers';
 
@@ -72,11 +79,34 @@ const requestUserSelect = {
   email: true,
 } satisfies Prisma.UserSelect;
 
+const LOCKED_REQUEST_STATUSES: RequestStatus[] = [
+  RequestStatus.SOLVED,
+  RequestStatus.COMPLETED,
+  RequestStatus.CANCELLED,
+  RequestStatus.ARCHIVED,
+];
+
+function buildSolvedAtUpdate(
+  fromStatus: RequestStatus,
+  toStatus: RequestStatus,
+): Pick<Prisma.RequestUpdateInput, 'solvedAt'> {
+  if (toStatus === RequestStatus.SOLVED && fromStatus !== RequestStatus.SOLVED) {
+    return { solvedAt: new Date() };
+  }
+
+  if (fromStatus === RequestStatus.SOLVED && toStatus !== RequestStatus.SOLVED) {
+    return { solvedAt: null };
+  }
+
+  return {};
+}
+
 @Injectable()
 export class RequestsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly sectorsService: SectorsService,
+    private readonly autoCompleteSettingsService: RequestAutoCompleteSettingsService,
   ) {}
 
   async create(
@@ -427,12 +457,24 @@ export class RequestsService {
     return { OR: orConditions };
   }
 
-  private resolvePermissions(
+  private isLockedStatus(status: RequestStatus): boolean {
+    return LOCKED_REQUEST_STATUSES.includes(status);
+  }
+
+  private assertRequestActionsAllowed(request: Request): void {
+    if (this.isLockedStatus(request.status)) {
+      throw new BadRequestException(
+        'Solicitação solucionada, concluída, cancelada ou arquivada permite apenas alteração de status ou revisão da solução',
+      );
+    }
+  }
+
+  private resolveBasePermissions(
     request: RequestWithAccess,
     userId: string,
     isGlobalAdmin: boolean,
     memberships: MembershipWithSector[],
-  ): RequestResponseDto['permissions'] {
+  ): Omit<RequestResponseDto['permissions'], 'canChangeStatus' | 'canReviewSolution'> {
     if (isGlobalAdmin) {
       return {
         canView: true,
@@ -473,6 +515,89 @@ export class RequestsService {
     const canMessage = isCreator || isManager || isAssignee;
 
     return { canView, canEdit, canMessage, canArchive, canManageObservers };
+  }
+
+  private resolvePermissions(
+    request: RequestWithAccess,
+    userId: string,
+    isGlobalAdmin: boolean,
+    memberships: MembershipWithSector[],
+  ): RequestResponseDto['permissions'] {
+    const base = this.resolveBasePermissions(
+      request,
+      userId,
+      isGlobalAdmin,
+      memberships,
+    );
+    const isCreator = request.createdById === userId;
+    const isAssignee =
+      request.assignees?.some((assignee) => assignee.userId === userId) ?? false;
+    const membership = memberships.find((m) => m.sectorId === request.sectorId);
+    const canChangeStatus = this.canUserChangeStatus(
+      request,
+      isGlobalAdmin,
+      base,
+      isAssignee,
+      membership?.sector,
+    );
+
+    if (request.status === RequestStatus.SOLVED) {
+      return {
+        canView: base.canView,
+        canEdit: false,
+        canMessage: false,
+        canManageObservers: false,
+        canArchive: false,
+        canChangeStatus: isGlobalAdmin,
+        canReviewSolution: isGlobalAdmin || isCreator,
+      };
+    }
+
+    if (!this.isLockedStatus(request.status)) {
+      return { ...base, canChangeStatus, canReviewSolution: false };
+    }
+
+    return {
+      canView: base.canView,
+      canEdit: false,
+      canMessage: false,
+      canManageObservers: false,
+      canArchive:
+        request.status === RequestStatus.COMPLETED &&
+        (isGlobalAdmin || base.canArchive),
+      canChangeStatus,
+      canReviewSolution: false,
+    };
+  }
+
+  private canUserChangeStatus(
+    request: RequestWithAccess,
+    isGlobalAdmin: boolean,
+    base: Omit<RequestResponseDto['permissions'], 'canChangeStatus' | 'canReviewSolution'>,
+    isAssignee: boolean,
+    sector?: Sector,
+  ): boolean {
+    if (isGlobalAdmin || base.canEdit) {
+      return true;
+    }
+
+    const isOperationalAssigneeInClosedSector =
+      isAssignee &&
+      base.canView &&
+      !!sector?.onlyManagerCanEdit;
+
+    if (
+      isOperationalAssigneeInClosedSector &&
+      !this.isLockedStatus(request.status)
+    ) {
+      return true;
+    }
+
+    if (this.isLockedStatus(request.status)) {
+      return false;
+    }
+
+    return false;
   }
 
   private toResponseDto(
@@ -609,22 +734,19 @@ export class RequestsService {
       throw new NotFoundException('Solicitação não encontrada');
     }
 
-    const IMMUTABLE_STATUSES: RequestStatus[] = [RequestStatus.CANCELLED, RequestStatus.ARCHIVED];
-    
-    if (IMMUTABLE_STATUSES.includes(request.status)) {
-      throw new BadRequestException('Não é possível alterar o status de uma solicitação cancelada ou arquivada');
-    }
-
     const permissions = this.resolvePermissions(request, userId, isGlobalAdmin, memberships);
 
-    if (!permissions.canEdit) {
+    if (!permissions.canChangeStatus) {
       throw new ForbiddenException('Sem permissão para alterar o status');
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const r = await tx.request.update({
         where: { id: requestId },
-        data: { status: newStatus },
+        data: {
+          status: newStatus,
+          ...buildSolvedAtUpdate(request.status, newStatus),
+        },
         include: {
           assignees: { include: { user: { select: requestUserSelect } } },
           observers: { include: { user: { select: requestUserSelect } } },
@@ -645,12 +767,148 @@ export class RequestsService {
     return this.toResponseDto(updated, userId, isGlobalAdmin, memberships);
   }
 
+  async autoCompleteExpiredSolvedRequests(): Promise<number> {
+    const { cutoff, value, unit } = await this.autoCompleteSettingsService.getDuration();
+
+    const expired = await this.prisma.request.findMany({
+      where: {
+        status: RequestStatus.SOLVED,
+        solvedAt: { lte: cutoff },
+      },
+      select: { id: true, createdById: true },
+    });
+
+    if (expired.length === 0) {
+      return 0;
+    }
+
+    const systemUserId = await this.resolveAutoCompleteHistoryUserId();
+    const history = buildAutoCompletedHistory(value, unit);
+
+    let completedCount = 0;
+
+    for (const req of expired) {
+      await this.prisma.$transaction(async (tx) => {
+        const updated = await tx.request.updateMany({
+          where: {
+            id: req.id,
+            status: RequestStatus.SOLVED,
+          },
+          data: {
+            status: RequestStatus.COMPLETED,
+            solvedAt: null,
+          },
+        });
+
+        if (updated.count === 0) {
+          return;
+        }
+
+        completedCount += updated.count;
+
+        await tx.requestHistory.create({
+          data: {
+            requestId: req.id,
+            userId: systemUserId ?? req.createdById,
+            ...history,
+          },
+        });
+      });
+    }
+
+    return completedCount;
+  }
+
+  async reviewSolution(
+    requestId: string,
+    userId: string,
+    isGlobalAdmin: boolean,
+    approved: boolean,
+  ): Promise<RequestResponseDto> {
+    const memberships = isGlobalAdmin ? [] : await this.getMemberships(userId);
+
+    const request = await this.prisma.request.findUnique({
+      where: { id: requestId },
+      include: {
+        assignees: { select: { userId: true } },
+        observers: { select: { userId: true } },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Solicitação não encontrada');
+    }
+
+    if (request.status !== RequestStatus.SOLVED) {
+      throw new BadRequestException(
+        'A revisão da solução só é permitida para solicitações com status SOLVED',
+      );
+    }
+
+    const permissions = this.resolvePermissions(
+      request,
+      userId,
+      isGlobalAdmin,
+      memberships,
+    );
+
+    if (!permissions.canReviewSolution) {
+      throw new ForbiddenException('Sem permissão para revisar a solução');
+    }
+
+    const newStatus = approved
+      ? RequestStatus.COMPLETED
+      : RequestStatus.IN_PROGRESS;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const r = await tx.request.update({
+        where: { id: requestId },
+        data: {
+          status: newStatus,
+          solvedAt: null,
+        },
+        include: {
+          assignees: { include: { user: { select: requestUserSelect } } },
+          observers: { include: { user: { select: requestUserSelect } } },
+        },
+      });
+
+      const statusHistory = buildStatusChangedHistory(request.status, newStatus);
+
+      await tx.requestHistory.create({
+        data: {
+          requestId,
+          userId,
+          action: statusHistory.action,
+          fromStatus: statusHistory.fromStatus,
+          toStatus: statusHistory.toStatus,
+          metadata: historyMetadata(
+            approved
+              ? 'Solução aprovada pelo requerente. Solicitação concluída.'
+              : 'Solução rejeitada pelo requerente. Solicitação retornou para em andamento.',
+            {
+              approved,
+              fromStatus: request.status,
+              toStatus: newStatus,
+              kind: approved ? 'SOLUTION_APPROVED' : 'SOLUTION_REJECTED',
+            },
+          ),
+        },
+      });
+
+      return r;
+    });
+
+    return this.toResponseDto(updated, userId, isGlobalAdmin, memberships);
+  }
+
   async findMessages(
     requestId: string,
     userId: string,
     isGlobalAdmin: boolean,
+    query: PaginationQueryDto,
   ): Promise<
-    Array<{
+    PaginatedResponseDto<{
       id: string;
       content: string;
       createdAt: Date;
@@ -665,13 +923,32 @@ export class RequestsService {
       throw new ForbiddenException('Sem permissão para visualizar mensagens');
     }
 
-    const messages = await this.prisma.requestMessage.findMany({
-      where: { requestId },
-      orderBy: { createdAt: 'asc' },
-      include: { user: { select: requestUserSelect } },
-    });
+    const page = query.page ?? DEFAULT_PAGE;
+    const limit = query.limit ?? DEFAULT_LIMIT;
+    const skip = (page - 1) * limit;
 
-    return messages.map(({ user, ...msg }) => ({ ...msg, author: user }));
+    const where = { requestId };
+
+    const [messages, total] = await Promise.all([
+      this.prisma.requestMessage.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'asc' },
+        include: { user: { select: requestUserSelect } },
+      }),
+      this.prisma.requestMessage.count({ where }),
+    ]);
+
+    return {
+      data: messages.map(({ user, ...msg }) => ({ ...msg, author: user })),
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async sendMessage(
@@ -698,6 +975,8 @@ export class RequestsService {
     if (!request) {
       throw new NotFoundException('Solicitação não encontrada');
     }
+
+    this.assertRequestActionsAllowed(request);
 
     const permissions = this.resolvePermissions(
       request,
@@ -785,10 +1064,7 @@ export class RequestsService {
       throw new NotFoundException('Solicitação não encontrada');
     }
 
-    const IMMUTABLE_STATUSES: RequestStatus[] = [RequestStatus.CANCELLED, RequestStatus.ARCHIVED];
-    if (IMMUTABLE_STATUSES.includes(request.status)) {
-      throw new BadRequestException('Não é possível editar uma solicitação cancelada ou arquivada');
-    }
+    this.assertRequestActionsAllowed(request);
 
     const permissions = this.resolvePermissions(request, userId, isGlobalAdmin, memberships);
 
@@ -799,6 +1075,11 @@ export class RequestsService {
     const historyEntries = this.buildUpdateHistoryEntries(request, dto);
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      const statusUpdate =
+        dto.status !== undefined && dto.status !== request.status
+          ? buildSolvedAtUpdate(request.status, dto.status)
+          : {};
+
       const r = await tx.request.update({
         where: { id: requestId },
         data: {
@@ -806,6 +1087,7 @@ export class RequestsService {
           ...(dto.description !== undefined ? { description: dto.description } : {}),
           ...(dto.priority !== undefined ? { priority: dto.priority } : {}),
           ...(dto.status !== undefined ? { status: dto.status } : {}),
+          ...statusUpdate,
         },
         include: {
           assignees: { include: { user: { select: requestUserSelect } } },
@@ -850,10 +1132,7 @@ export class RequestsService {
     const memberships = isGlobalAdmin ? [] : await this.getMemberships(userId);
     const request = await this.fetchRequestForAction(requestId);
 
-    const IMMUTABLE_STATUSES: RequestStatus[] = [RequestStatus.CANCELLED, RequestStatus.ARCHIVED];
-    if (IMMUTABLE_STATUSES.includes(request.status)) {
-      throw new BadRequestException('Não é possível atribuir uma solicitação cancelada ou arquivada');
-    }
+    this.assertRequestActionsAllowed(request);
 
     const permissions = this.resolvePermissions(request, userId, isGlobalAdmin, memberships);
     if (!permissions.canEdit) {
@@ -919,10 +1198,7 @@ export class RequestsService {
     const memberships = isGlobalAdmin ? [] : await this.getMemberships(userId);
     const request = await this.fetchRequestForAction(requestId);
 
-    const IMMUTABLE_STATUSES: RequestStatus[] = [RequestStatus.CANCELLED, RequestStatus.ARCHIVED];
-    if (IMMUTABLE_STATUSES.includes(request.status)) {
-      throw new BadRequestException('Não é possível alterar observadores de uma solicitação cancelada ou arquivada');
-    }
+    this.assertRequestActionsAllowed(request);
 
     const permissions = this.resolvePermissions(request, userId, isGlobalAdmin, memberships);
     if (!permissions.canManageObservers) {
@@ -982,6 +1258,12 @@ export class RequestsService {
     }
     if (request.status === RequestStatus.ARCHIVED) {
       throw new BadRequestException('Não é possível cancelar uma solicitação arquivada');
+    }
+    if (request.status === RequestStatus.COMPLETED) {
+      throw new BadRequestException('Não é possível cancelar uma solicitação concluída');
+    }
+    if (request.status === RequestStatus.SOLVED) {
+      throw new BadRequestException('Não é possível cancelar uma solicitação aguardando revisão da solução');
     }
 
     const permissions = this.resolvePermissions(request, userId, isGlobalAdmin, memberships);
@@ -1150,5 +1432,15 @@ export class RequestsService {
         'Um ou mais usuários não encontrados ou estão inativos',
       );
     }
+  }
+
+  private async resolveAutoCompleteHistoryUserId(): Promise<string | null> {
+    const admin = await this.prisma.user.findFirst({
+      where: { isGlobalAdmin: true },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return admin?.id ?? null;
   }
 }

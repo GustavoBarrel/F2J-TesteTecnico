@@ -28,6 +28,7 @@ model User {
   observedRequests       RequestObserver[]
   requestMessages        RequestMessage[]
   requestHistories       RequestHistory[]
+  updatedAutoCompleteSettings RequestAutoCompleteSetting[]
 
   @@map("users")
 }
@@ -99,6 +100,7 @@ model Request {
   sectorId         String           @map("sector_id")
   sectorServiceId  String           @map("sector_service_id")
   createdById      String           @map("created_by_id")
+  solvedAt         DateTime?        @map("solved_at")
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
@@ -111,6 +113,7 @@ model Request {
   history          RequestHistory[]
 
   @@index([sectorId, status])
+  @@index([status, solvedAt])
   @@index([createdById])
   @@map("requests")
 }
@@ -223,6 +226,7 @@ enum RequestStatus {
   NEW
   PENDING
   IN_PROGRESS
+  SOLVED
   COMPLETED
   CANCELLED
   ARCHIVED
@@ -245,4 +249,22 @@ enum RequestHistoryAction {
   MESSAGE_SENT
   CANCELLED
   ARCHIVED
+}
+
+enum AutoCompleteDurationUnit {
+  MINUTES
+  DAYS
+}
+
+model RequestAutoCompleteSetting {
+  id             String                   @id @default("default")
+  cronExpression String                   @default("0 3 * * *") @map("cron_expression")
+  durationValue  Int                      @default(7) @map("duration_value")
+  durationUnit   AutoCompleteDurationUnit @default(DAYS) @map("duration_unit")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+  updatedById    String?                  @map("updated_by_id")
+
+  updatedBy      User?                    @relation(fields: [updatedById], references: [id])
+
+  @@map("request_auto_complete_settings")
 }

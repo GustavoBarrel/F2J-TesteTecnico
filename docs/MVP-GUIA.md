@@ -685,7 +685,7 @@ async assign(requestId, assigneeId, user) {
 2. Criar mensagem
 3. Log `MESSAGE_SENT`
 
-**GET /requests/:id/messages** — ordenar por `createdAt ASC`
+**GET /requests/:id/messages** — paginado (`page`, `limit`) e ordenado por `createdAt ASC`
 
 **GET /requests/:id/history** — ordenar por `createdAt ASC`
 

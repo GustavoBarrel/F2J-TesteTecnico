@@ -85,6 +85,9 @@ export class RequestResponseDto {
   @ApiProperty()
   updatedAt: Date;
 
+  @ApiPropertyOptional({ nullable: true })
+  solvedAt: Date | null;
+
   @ApiProperty({ type: RequestPermissionsDto })
   permissions: RequestPermissionsDto;
 }

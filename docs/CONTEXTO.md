@@ -504,7 +504,7 @@ GET    /requests/:id/permissions/me      # ações permitidas (para UI)
 
 # Messages
 POST   /requests/:id/messages            # { content }
-GET    /requests/:id/messages
+GET    /requests/:id/messages       # paginado: page, limit
 
 # History
 GET    /requests/:id/history

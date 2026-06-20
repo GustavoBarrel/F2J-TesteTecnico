@@ -21,6 +21,7 @@ const STATUS_LABELS: Record<RequestStatus, string> = {
   [RequestStatus.NEW]: 'Novo',
   [RequestStatus.PENDING]: 'Pendente',
   [RequestStatus.IN_PROGRESS]: 'Em andamento',
+  [RequestStatus.SOLVED]: 'Solucionado',
   [RequestStatus.COMPLETED]: 'Concluído',
   [RequestStatus.CANCELLED]: 'Cancelado',
   [RequestStatus.ARCHIVED]: 'Arquivado',
@@ -238,6 +239,37 @@ export function buildStatusChangedHistory(
         toStatus,
         fromStatusLabel: formatStatus(fromStatus),
         toStatusLabel: formatStatus(toStatus),
+      },
+    ),
+  };
+}
+
+export function buildAutoCompletedHistory(
+  value: number,
+  unit: 'minutes' | 'days',
+): {
+  action: typeof RequestHistoryAction.STATUS_CHANGED;
+  fromStatus: RequestStatus;
+  toStatus: RequestStatus;
+  metadata: Prisma.InputJsonValue;
+} {
+  const label = unit === 'minutes' ? 'minuto(s)' : 'dia(s)';
+
+  return {
+    action: RequestHistoryAction.STATUS_CHANGED,
+    fromStatus: RequestStatus.SOLVED,
+    toStatus: RequestStatus.COMPLETED,
+    metadata: historyMetadata(
+      `Solicitação concluída automaticamente após ${value} ${label} sem resposta do solicitante.`,
+      {
+        fromStatus: RequestStatus.SOLVED,
+        toStatus: RequestStatus.COMPLETED,
+        kind: 'AUTO_COMPLETED',
+        autoCompleteUnit: unit,
+        autoCompleteValue: value,
+        ...(unit === 'minutes'
+          ? { autoCompleteMinutes: value }
+          : { autoCompleteDays: value }),
       },
     ),
   };

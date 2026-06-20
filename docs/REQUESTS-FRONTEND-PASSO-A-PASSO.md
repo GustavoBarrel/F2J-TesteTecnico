@@ -17,7 +17,7 @@
 | Falta | `PATCH /api/requests/:id/status` | Falta transição de status. |
 | Falta | `PATCH /api/requests/:id/cancel` | Falta cancelamento. |
 | Falta | `PATCH /api/requests/:id/archive` | Falta arquivamento. |
-| Falta | `GET /api/requests/:id/messages` | Falta listagem de mensagens. |
+| OK | `GET /api/requests/:id/messages` | Listagem paginada de mensagens para carregamento incremental. |
 | Falta | `POST /api/requests/:id/messages` | Falta envio de mensagem. |
 | Falta | `GET /api/requests/:id/history` | Falta histórico. |
 | Falta | `GET /api/sectors/:sectorId/members/options` | Falta opções de responsáveis para assign. |
@@ -357,9 +357,14 @@ Retorno:
 
 ### 8. `GET /api/requests/:id/messages`
 
-Status: Falta implementar.
+Status: Implementada.
 
-Lista mensagens do chamado.
+Lista mensagens do chamado de forma paginada.
+
+Query:
+
+- `page` (opcional, default `1`)
+- `limit` (opcional, default `10`, max `50`)
 
 Regras:
 
@@ -369,19 +374,27 @@ Regras:
 Retorno:
 
 ```json
-[
-  {
-    "id": "message-id",
-    "content": "Mensagem",
-    "createdAt": "2026-06-18T00:00:00.000Z",
-    "author": {
-      "id": "user-id",
-      "firstName": "Maria",
-      "lastName": "Silva",
-      "email": "maria@email.com"
+{
+  "data": [
+    {
+      "id": "message-id",
+      "content": "Mensagem",
+      "createdAt": "2026-06-18T00:00:00.000Z",
+      "author": {
+        "id": "user-id",
+        "firstName": "Maria",
+        "lastName": "Silva",
+        "email": "maria@email.com"
+      }
     }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 10,
+    "total": 1,
+    "totalPages": 1
   }
-]
+}
 ```
 
 ---

@@ -5,7 +5,7 @@ import { RequestPriority, RequestStatus } from '../../../generated/prisma/client
 const ALLOWED_STATUSES = [
   RequestStatus.PENDING,
   RequestStatus.IN_PROGRESS,
-  RequestStatus.COMPLETED,
+  RequestStatus.SOLVED,
 ] as const;
 
 export class UpdateRequestDto {
