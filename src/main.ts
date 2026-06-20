@@ -36,7 +36,8 @@ async function bootstrap() {
         'Use `POST /api/auth/login` para obter o `access_token` e clique em **Authorize** para autenticar.\n\n' +
         '## Tags\n' +
         '- **Auth** — Login e perfil do usuário autenticado\n' +
-        '- **Admin: Usuários** — CRUD de usuários (requer `isGlobalAdmin`)',
+        '- **Admin:*** — Rotas sob `/api/admin/*` (requer `isGlobalAdmin`, exceto onde indicado)\n' +
+        '- **Solicitações / Setores** — Rotas operacionais para usuários autenticados',
     )
     .setVersion('1.0')
     .addBearerAuth()

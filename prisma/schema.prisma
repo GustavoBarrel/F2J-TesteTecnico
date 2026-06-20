@@ -258,8 +258,8 @@ enum AutoCompleteDurationUnit {
 
 model RequestAutoCompleteSetting {
   id             String                   @id @default("default")
-  cronExpression String                   @default("0 3 * * *") @map("cron_expression")
-  durationValue  Int                      @default(7) @map("duration_value")
+  cronExpression String                   @default("0 6 * * *") @map("cron_expression")
+  durationValue  Int                      @default(1) @map("duration_value")
   durationUnit   AutoCompleteDurationUnit @default(DAYS) @map("duration_unit")
   updatedAt      DateTime                 @updatedAt @map("updated_at")
   updatedById    String?                  @map("updated_by_id")

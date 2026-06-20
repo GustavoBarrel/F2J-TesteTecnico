@@ -11,9 +11,9 @@ import {
 import { Request as ExpressRequest } from 'express';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { ApiPaginatedResponse } from 'src/common/decorators/api-paginated-response.decorator';
-import { RequestsService } from './requests.service';
-import { FindSectorRequestsQueryDto } from './dto/find-all-requests-query.dto';
-import { RequestResponseDto } from './dto/request-response.dto';
+import { RequestsService } from '../services/requests.service';
+import { FindSectorRequestsQueryDto } from '../dto/find-all-requests-query.dto';
+import { RequestResponseDto } from '../dto/request-response.dto';
 import { SectorsService } from 'src/sectors/sectors.service';
 import { SectorMemberOptionDto } from 'src/sectors/dto/sector-member-option.dto';
 

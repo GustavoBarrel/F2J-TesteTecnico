@@ -1,6 +1,13 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
-import { AutoCompleteDurationUnit } from '../../../generated/prisma/client';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
+import { AutoCompleteDurationUnit } from '../../../../../generated/prisma/client';
 
 export class UpdateRequestAutoCompleteSettingsDto {
   @ApiPropertyOptional({

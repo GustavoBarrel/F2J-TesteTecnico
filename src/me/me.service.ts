@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { RequestsService } from 'src/requests/requests.service';
+import { RequestsService } from 'src/requests/services/requests.service';
 import { RequestResponseDto } from 'src/requests/dto/request-response.dto';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { FindAllQueryDto } from 'src/common/dto/find-all-query.dto';

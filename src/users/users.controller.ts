@@ -36,7 +36,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 @ApiForbiddenResponse({
   description: 'Acesso permitido apenas para super admin',
 })
-@Controller('users')
+@Controller('admin/users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
@@ -96,7 +96,9 @@ export class UsersController {
   })
   @ApiOkResponse({ type: UserResponseDto })
   @ApiNotFoundResponse({ description: 'Usuário não encontrado' })
-  resetPassword(@Body() resetPasswordDto: ResetPasswordDto): Promise<ResetPasswordResponseDto> {
+  resetPassword(
+    @Body() resetPasswordDto: ResetPasswordDto,
+  ): Promise<ResetPasswordResponseDto> {
     return this.usersService.resetPassword(resetPasswordDto);
   }
 }

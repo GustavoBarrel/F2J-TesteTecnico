@@ -35,8 +35,10 @@ import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 @ApiBearerAuth()
 @UseGuards(GlobalAdminGuard)
 @ApiUnauthorizedResponse({ description: 'Token inválido ou não informado' })
-@ApiForbiddenResponse({ description: 'Acesso permitido apenas para super admin' })
-@Controller('sectors/:sectorId/members')
+@ApiForbiddenResponse({
+  description: 'Acesso permitido apenas para super admin',
+})
+@Controller('admin/sectors/:sectorId/members')
 export class UserSectorMembershipController {
   constructor(
     private readonly userSectorMembershipService: UserSectorMembershipService,

@@ -34,9 +34,9 @@ describe('MeController', () => {
     const response = [{ id: 'sector-ti', name: 'TI', statusCounts: [] }];
     mockMeService.getMySectors.mockResolvedValue(response);
 
-    await expect(
-      controller.getMySectors(query, req as never),
-    ).resolves.toBe(response);
+    await expect(controller.getMySectors(query, req as never)).resolves.toBe(
+      response,
+    );
 
     expect(mockMeService.getMySectors).toHaveBeenCalledWith(
       'user-1',
@@ -53,9 +53,9 @@ describe('MeController', () => {
     };
     mockMeService.findMyRequests.mockResolvedValue(response);
 
-    await expect(
-      controller.findMyRequests(query, req as never),
-    ).resolves.toBe(response);
+    await expect(controller.findMyRequests(query, req as never)).resolves.toBe(
+      response,
+    );
 
     expect(mockMeService.findMyRequests).toHaveBeenCalledWith(
       'user-1',
@@ -72,9 +72,9 @@ describe('MeController', () => {
     };
     mockMeService.findAssignedRequests.mockResolvedValue(response);
 
-    await expect(
-      controller.findAssigned(query, req as never),
-    ).resolves.toBe(response);
+    await expect(controller.findAssigned(query, req as never)).resolves.toBe(
+      response,
+    );
 
     expect(mockMeService.findAssignedRequests).toHaveBeenCalledWith(
       'user-1',

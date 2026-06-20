@@ -24,7 +24,7 @@ export class RequestPermissionsDto {
 
   @ApiProperty({
     description:
-      'Pode alterar status: admin global, usuário com canEdit, ou responsável atribuído em setor com onlyManagerCanEdit (enquanto o chamado não estiver bloqueado).',
+      'Pode alterar status via PATCH /requests/:id/status: admin global (inclusive em status bloqueados, ex. reabrir COMPLETED), usuário com canEdit, ou responsável atribuído em setor com onlyManagerCanEdit (enquanto o chamado não estiver bloqueado).',
   })
   canChangeStatus: boolean;
 

@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { MeService } from './me.service';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { RequestsService } from 'src/requests/requests.service';
+import { RequestsService } from 'src/requests/services/requests.service';
 import { RequestStatus, Role, RoleSlug } from '../../generated/prisma/client';
 
 const userId = 'user-1';
@@ -265,7 +265,10 @@ describe('MeService', () => {
   describe('requests pessoais', () => {
     it('findMyRequests delega para RequestsService.findMine', async () => {
       const query = { page: 2, limit: 5, status: RequestStatus.NEW };
-      const response = { data: [], meta: { page: 2, limit: 5, total: 0, totalPages: 0 } };
+      const response = {
+        data: [],
+        meta: { page: 2, limit: 5, total: 0, totalPages: 0 },
+      };
       mockRequestsService.findMine.mockResolvedValue(response);
 
       await expect(service.findMyRequests(userId, false, query)).resolves.toBe(
@@ -280,7 +283,10 @@ describe('MeService', () => {
 
     it('findAssignedRequests delega para RequestsService.findAssigned', async () => {
       const query = { page: 1, limit: 10, sectorId: tiSector.id };
-      const response = { data: [], meta: { page: 1, limit: 10, total: 0, totalPages: 0 } };
+      const response = {
+        data: [],
+        meta: { page: 1, limit: 10, total: 0, totalPages: 0 },
+      };
       mockRequestsService.findAssigned.mockResolvedValue(response);
 
       await expect(

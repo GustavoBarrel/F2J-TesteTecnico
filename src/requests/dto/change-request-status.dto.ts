@@ -17,7 +17,8 @@ export class ChangeRequestStatusDto {
   })
   @ApiProperty({
     enum: ALLOWED_STATUSES,
-    description: 'Novo status da solicitação',
+    description:
+      'Novo status. Valores aceitos: PENDING, IN_PROGRESS, SOLVED. COMPLETED só via PATCH /requests/:id/solution-review. Admin global pode usar este endpoint em chamados bloqueados (ex. reabrir COMPLETED).',
   })
   status: AllowedStatus;
 }

@@ -1,45 +1,57 @@
 # Requests — Rotas Para o Front-end
 
+> Prefixo global: `/api`. Rotas **admin** exigem `isGlobalAdmin`.
+
 ## Status Geral
 
 | Status | Rota | Observação |
 |---|---|---|
-| OK | `GET /api/me/sectors` | Implementada e testada. |
-| OK | `GET /api/me/requests` | Implementada e testada. |
-| OK | `GET /api/me/requests/assigned` | Implementada e testada. |
-| OK | `GET /api/sectors/services/options` | Já existe. Usada para criar chamado/breadcrumb. |
-| Parcial | `POST /api/requests` | Cria chamado, mas falta retornar DTO com `permissions` e gravar histórico `CREATED`. |
-| Parcial | `GET /api/requests` | Lista geral existe e tem testes de visibilidade; pode ficar como fallback. |
-| Falta | `GET /api/sectors/:sectorId/requests` | Lista principal por setor. |
-| Falta | `GET /api/requests/:id` | Hoje é stub simples; falta detalhe completo e permissão. |
-| Falta | `PATCH /api/requests/:id` | Hoje é stub; falta edição real. |
-| Falta | `PATCH /api/requests/:id/assign` | Falta atribuição. |
-| Falta | `PATCH /api/requests/:id/status` | Falta transição de status. |
-| Falta | `PATCH /api/requests/:id/cancel` | Falta cancelamento. |
-| Falta | `PATCH /api/requests/:id/archive` | Falta arquivamento. |
-| OK | `GET /api/requests/:id/messages` | Listagem paginada de mensagens para carregamento incremental. |
-| Falta | `POST /api/requests/:id/messages` | Falta envio de mensagem. |
-| Falta | `GET /api/requests/:id/history` | Falta histórico. |
-| Falta | `GET /api/sectors/:sectorId/members/options` | Falta opções de responsáveis para assign. |
+| OK | `GET /api/me/sectors` | Home — setores do usuário |
+| OK | `GET /api/me/requests` | Chamados criados ou observados |
+| OK | `GET /api/me/requests/assigned` | Chamados atribuídos ao usuário |
+| OK | `GET /api/sectors/services/options` | Select setor+serviço ao criar chamado |
+| OK | `GET /api/sectors/:sectorId/requests` | Lista principal por setor |
+| OK | `GET /api/sectors/:sectorId/assignee-options` | Membros do setor para assign |
+| OK | `POST /api/requests` | Cria chamado + histórico CREATED |
+| OK | `GET /api/requests` | Lista geral (fallback) |
+| OK | `GET /api/requests/observer-options` | Select de observadores na criação |
+| OK | `GET /api/requests/:id` | Detalhe + permissions (sem messages/history) |
+| OK | `PATCH /api/requests/:id` | Editar título/descrição/prioridade (não status) |
+| OK | `PATCH /api/requests/:id/assign` | `{ userIds: string[] }` |
+| OK | `PATCH /api/requests/:id/observers` | `{ userIds: string[] }` |
+| OK | `PATCH /api/requests/:id/status` | `PENDING` \| `IN_PROGRESS` \| `SOLVED`; admin reabre `COMPLETED` |
+| OK | `PATCH /api/requests/:id/solution-review` | `{ approved: boolean }` — SOLVED → COMPLETED/IN_PROGRESS |
+| OK | `PATCH /api/requests/:id/cancel` | Cancelamento |
+| OK | `PATCH /api/requests/:id/archive` | Arquivamento (COMPLETED → ARCHIVED) |
+| OK | `GET /api/requests/:id/messages` | Paginado |
+| OK | `POST /api/requests/:id/messages` | Envio de mensagem |
+| OK | `GET /api/admin/requests/:id/history` | Histórico — **somente admin global** |
+
+### Rotas admin (painel de configuração)
+
+| Rota | Uso |
+|---|---|
+| `GET/POST/PATCH /api/admin/users` | CRUD usuários |
+| `GET /api/admin/roles` | Cargos |
+| `GET/POST/PATCH /api/admin/sectors` | CRUD setores |
+| `/api/admin/sectors/:sectorId/members` | Memberships |
+| `/api/admin/sectors/:sectorId/services` | Serviços do setor |
+| `/api/admin/settings/request-auto-complete` | Auto-conclusão de SOLVED |
 
 ## Regras Globais
 
+- `permissions` vem em todo `RequestResponseDto` — use para habilitar/desabilitar botões na UI.
 - `isGlobalAdmin = true`: vê e faz tudo.
-- `MANAGER`: vê todos os chamados do setor; pode editar/atribuir; pode arquivar.
-- `TECHNICIAN`:
-  - `onlyManagerCanView = false`: vê todos os chamados do setor.
-  - `onlyManagerCanView = true`: vê só chamados atribuídos a ele.
-  - `onlyManagerCanEdit = false`: pode editar e atribuir.
-  - `onlyManagerCanEdit = true`: não edita nem atribui.
-  - `onlyManagerCanArchive = false`: pode arquivar.
-  - `onlyManagerCanArchive = true`: não arquiva.
-- Criador sempre vê os chamados que criou, mas não necessariamente edita/opera.
+- Histórico admin: `GET /api/admin/requests/:id/history` (não usar `/api/requests/:id/history`).
+- Assign: `GET /api/sectors/:sectorId/assignee-options` (não `/members/options`).
 
 ## Próximas Rotas Em Ordem
 
+> **Implementado.** Seções abaixo descrevem contratos para referência do front-end.
+
 ### 1. `GET /api/sectors/:sectorId/requests`
 
-Status: Falta implementar.
+Status: **OK**
 
 Lista os chamados de um setor. É a tela principal ao clicar em um card de setor.
 
@@ -107,14 +119,16 @@ Front-end:
 
 ### 2. `GET /api/requests/:id`
 
-Status: Falta implementar. Existe um stub simples, mas ainda não atende o front.
+Status: **OK**
 
-Detalhe completo do chamado.
+Detalhe do chamado (dados principais + `permissions`). **Não inclui** mensagens nem histórico.
 
 Regras:
 
 - Validar `canView`.
 - Se não puder ver: `403`.
+- Mensagens: `GET /api/requests/:id/messages`.
+- Histórico: `GET /api/admin/requests/:id/history` (**somente admin global**).
 
 Retorno:
 
@@ -139,32 +153,26 @@ Retorno:
     "lastName": "Silva",
     "email": "maria@email.com"
   },
-  "assignedTo": {
-    "id": "tech-id",
-    "firstName": "Pedro",
-    "lastName": "Souza",
-    "email": "pedro@email.com"
-  },
+  "assignees": [],
+  "observers": [],
   "permissions": {
     "canView": true,
     "canEdit": true,
     "canArchive": false
-  },
-  "messages": [],
-  "history": []
+  }
 }
 ```
 
 Front-end:
 
 - Tela de detalhe usa `permissions` para renderizar ações.
-- Pode trazer mensagens/histórico junto ou carregar em rotas separadas.
+- Carregar mensagens e histórico em rotas separadas (lazy load).
 
 ---
 
 ### 3. `PATCH /api/requests/:id`
 
-Status: Falta implementar. Existe um stub simples, mas ainda não edita.
+Status: **OK**
 
 Editar chamado.
 
@@ -182,6 +190,7 @@ Regras:
 
 - Exige `permissions.canEdit = true`.
 - `canEdit` também será usado para atribuir.
+- **Status:** usar `PATCH /api/requests/:id/status` (não enviar `status` neste endpoint).
 - Registrar histórico `UPDATED`.
 
 Retorno:
@@ -204,7 +213,7 @@ Retorno:
 
 ### 4. `PATCH /api/requests/:id/assign`
 
-Status: Falta implementar.
+Status: **OK**
 
 Atribuir responsável.
 
@@ -248,47 +257,39 @@ Front-end:
 
 ### 5. `PATCH /api/requests/:id/status`
 
-Status: Falta implementar.
+Status: **OK**
 
-Alterar status.
+Alterar status operacional.
 
-Body:
+Body (valores aceitos):
 
 ```json
 {
-  "status": "COMPLETED"
+  "status": "SOLVED"
 }
 ```
 
-Transições permitidas:
-
-```txt
-NEW -> IN_PROGRESS | CANCELLED
-PENDING -> IN_PROGRESS | CANCELLED
-IN_PROGRESS -> PENDING | COMPLETED | CANCELLED
-COMPLETED -> ARCHIVED
-CANCELLED -> ARCHIVED
-ARCHIVED -> nenhuma
-```
+Somente `PENDING`, `IN_PROGRESS` ou `SOLVED`. **`COMPLETED` não é aceito** neste endpoint — use `PATCH /api/requests/:id/solution-review` (`approved: true`).
 
 Regras:
 
-- Admin sempre pode.
-- Manager pode.
-- Technician só deve mudar status quando tiver permissão operacional no setor.
-- Validar transição.
-- Registrar `STATUS_CHANGED`.
+- **Admin global:** `canChangeStatus: true` mesmo em status bloqueados (`SOLVED`, `COMPLETED`, `CANCELLED`, `ARCHIVED`). Pode reabrir chamado concluído (ex.: `COMPLETED` → `PENDING`).
+- **Demais papéis:** `canChangeStatus` só enquanto o chamado **não** estiver bloqueado — admin global, `canEdit`, ou responsável atribuído em setor com `onlyManagerCanEdit`.
+- `SOLVED` → aguarda revisão do criador (`solution-review`) ou auto-conclusão.
+- Cancelar: `PATCH /api/requests/:id/cancel` (não usar este endpoint).
+- Concluir (`COMPLETED`): `PATCH /api/requests/:id/solution-review` quando status = `SOLVED`.
 
 Retorno:
 
 ```json
 {
   "id": "request-id",
-  "status": "COMPLETED",
+  "status": "SOLVED",
   "permissions": {
     "canView": true,
-    "canEdit": true,
-    "canArchive": false
+    "canEdit": false,
+    "canChangeStatus": true,
+    "canReviewSolution": false
   }
 }
 ```
@@ -297,7 +298,7 @@ Retorno:
 
 ### 6. `PATCH /api/requests/:id/cancel`
 
-Status: Falta implementar.
+Status: **OK**
 
 Cancelar chamado.
 
@@ -328,7 +329,7 @@ Retorno:
 
 ### 7. `PATCH /api/requests/:id/archive`
 
-Status: Falta implementar.
+Status: **OK**
 
 Arquivar chamado.
 
@@ -401,7 +402,7 @@ Retorno:
 
 ### 9. `POST /api/requests/:id/messages`
 
-Status: Falta implementar.
+Status: **OK**
 
 Enviar mensagem.
 
@@ -437,9 +438,9 @@ Retorno:
 
 ---
 
-### 10. `GET /api/requests/:id/history`
+### 10. `GET /api/admin/requests/:id/history`
 
-Status: Falta implementar.
+Status: **OK** — somente admin global.
 
 Timeline do chamado.
 
@@ -473,18 +474,16 @@ Retorno:
 
 ---
 
-### 11. `GET /api/sectors/:sectorId/members/options`
+### 11. `GET /api/sectors/:sectorId/assignee-options`
 
-Status: Falta implementar.
-
-Opções de responsáveis para atribuição.
+Status: **OK** (substitui o antigo `members/options`).
 
 Regras:
 
 - Admin: pode.
 - Manager: pode.
-- Technician: só se `onlyManagerCanEdit = false`.
-- Retornar usuários membros ativos do setor.
+- Technician: só se membro do setor.
+- Retorna usuários membros ativos do setor.
 
 Retorno:
 
@@ -504,25 +503,23 @@ Front-end:
 
 - Usado no modal de atribuir chamado.
 
-## Ordem Recomendada
+## Ordem Recomendada (front-end)
 
-1. `GET /api/sectors/:sectorId/requests`
-2. `GET /api/requests/:id`
-3. `PATCH /api/requests/:id`
-4. `PATCH /api/requests/:id/assign`
-5. `PATCH /api/requests/:id/status`
-6. `PATCH /api/requests/:id/cancel`
-7. `PATCH /api/requests/:id/archive`
-8. Messages: `GET` + `POST`
-9. History
-10. Members options para assign
+1. Home: `GET /api/me/sectors`
+2. Lista setor: `GET /api/sectors/:sectorId/requests`
+3. Detalhe: `GET /api/requests/:id`
+4. Ações via `permissions.*` (assign, status, cancel, archive, messages)
+5. Histórico admin: `GET /api/admin/requests/:id/history`
 
 ## Observações
 
 - Remover ou ignorar `DELETE /api/requests/:id`; usar `cancel` e `archive`.
 - `permissions.canEdit` controla editar e atribuir.
 - `permissions.canArchive` controla arquivar.
-- `GET /api/requests` pode permanecer como lista geral, mas o front principal deve usar:
-  - `/me/requests`
-  - `/me/requests/assigned`
-  - `/sectors/:sectorId/requests`
+- `permissions.canChangeStatus` — admin global também em status bloqueados (ex.: reabrir `COMPLETED`); demais papéis só enquanto não bloqueado. PATCH aceita `PENDING`, `IN_PROGRESS`, `SOLVED` (não `COMPLETED`).
+- `permissions.canReviewSolution` — quando status = `SOLVED`.
+- Listagens principais:
+  - `/api/me/requests`
+  - `/api/me/requests/assigned`
+  - `/api/sectors/:sectorId/requests`
+- Painel admin usa prefixo `/api/admin/*`.

@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Patch,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
@@ -29,7 +22,9 @@ type AuthenticatedRequest = {
 @ApiBearerAuth()
 @UseGuards(GlobalAdminGuard)
 @ApiUnauthorizedResponse({ description: 'Token inválido ou não informado' })
-@ApiForbiddenResponse({ description: 'Acesso permitido apenas para super admin' })
+@ApiForbiddenResponse({
+  description: 'Acesso permitido apenas para super admin',
+})
 @Controller('admin/settings/request-auto-complete')
 export class RequestAutoCompleteSettingsController {
   constructor(
@@ -38,7 +33,9 @@ export class RequestAutoCompleteSettingsController {
   ) {}
 
   @Get('options')
-  @ApiOperation({ summary: 'Opções disponíveis para configurar auto-conclusão' })
+  @ApiOperation({
+    summary: 'Opções disponíveis para configurar auto-conclusão',
+  })
   @ApiOkResponse({ type: RequestAutoCompleteSettingsOptionsDto })
   getOptions(): RequestAutoCompleteSettingsOptionsDto {
     return this.settingsService.getOptions();
@@ -62,7 +59,10 @@ export class RequestAutoCompleteSettingsController {
     @Req() req: AuthenticatedRequest,
     @Body() dto: UpdateRequestAutoCompleteSettingsDto,
   ): Promise<RequestAutoCompleteSettingsResponseDto> {
-    const updated = await this.settingsService.updateSettings(dto, req.user.sub);
+    const updated = await this.settingsService.updateSettings(
+      dto,
+      req.user.sub,
+    );
 
     if (dto.cronExpression !== undefined) {
       await this.autoCompleteJob.refreshSchedule(updated.cronExpression);

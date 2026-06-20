@@ -7,18 +7,16 @@ import {
   Param,
   Request,
   Query,
-  UseGuards,
 } from '@nestjs/common';
-import { RequestsService } from './requests.service';
-import { CreateRequestDto } from './dto/create-request.dto';
-import { UpdateRequestDto } from './dto/update-request.dto';
-import { FindAllRequestsQueryDto } from './dto/find-all-requests-query.dto';
+import { RequestsService } from '../services/requests.service';
+import { CreateRequestDto } from '../dto/create-request.dto';
+import { UpdateRequestDto } from '../dto/update-request.dto';
+import { FindAllRequestsQueryDto } from '../dto/find-all-requests-query.dto';
 import {
   RequestDetailResponseDto,
-  RequestHistoryEntryDto,
   RequestMessageResponseDto,
   RequestResponseDto,
-} from './dto/request-response.dto';
+} from '../dto/request-response.dto';
 import { Request as ExpressRequest } from 'express';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
@@ -34,11 +32,10 @@ import {
   ApiCreatedResponse,
 } from '@nestjs/swagger';
 import { ApiPaginatedResponse } from 'src/common/decorators/api-paginated-response.decorator';
-import { GlobalAdminGuard } from 'src/auth/guards/global-admin.guard';
-import { CreateRequestMessageDto } from './dto/create-request-message.dto';
-import { ChangeRequestStatusDto } from './dto/change-request-status.dto';
-import { AssignRequestDto, SetObserversDto } from './dto/assign-request.dto';
-import { ReviewRequestSolutionDto } from './dto/review-request-solution.dto';
+import { CreateRequestMessageDto } from '../dto/create-request-message.dto';
+import { ChangeRequestStatusDto } from '../dto/change-request-status.dto';
+import { AssignRequestDto, SetObserversDto } from '../dto/assign-request.dto';
+import { ReviewRequestSolutionDto } from '../dto/review-request-solution.dto';
 import { UsersService } from 'src/users/users.service';
 import { UserOptionDto } from 'src/users/dto/user-option.dto';
 import { ApiQuery } from '@nestjs/swagger';
@@ -77,7 +74,11 @@ export class RequestsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar solicitações' })
+  @ApiOperation({
+    summary: 'Listar solicitações',
+    description:
+      'Lista paginada conforme escopo do usuário autenticado. **Admin global:** todas. **Demais:** solicitações criadas, observadas, do setor (manager), atribuídas (technician) ou fila sem responsável (technician em setor aberto). Filtros: `page`, `limit`, `sectorId`, `status`.',
+  })
   @ApiPaginatedResponse(RequestResponseDto)
   findAll(
     @Query() query: FindAllRequestsQueryDto,
@@ -103,7 +104,11 @@ export class RequestsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Buscar detalhes de uma solicitação' })
+  @ApiOperation({
+    summary: 'Buscar detalhes de uma solicitação',
+    description:
+      'Retorna dados principais + `permissions`. **Não inclui** mensagens nem histórico — use `GET /requests/:id/messages` (paginado) e `GET /admin/requests/:id/history` (somente admin global).',
+  })
   @ApiOkResponse({ type: RequestDetailResponseDto })
   @ApiNotFoundResponse({ description: 'Solicitação não encontrada' })
   @ApiForbiddenResponse({ description: 'Sem permissão para visualizar' })
@@ -122,12 +127,15 @@ export class RequestsController {
   @ApiOperation({
     summary: 'Alterar status de uma solicitação',
     description:
-      'Valores permitidos: `PENDING`, `IN_PROGRESS`, `SOLVED`. Use `SOLVED` para encaminhar ao requerente revisar a solução. Para cancelar use `PATCH /:id/cancel`.',
+      'Body aceita apenas `PENDING`, `IN_PROGRESS` ou `SOLVED` — `COMPLETED` não é valor válido aqui (use `PATCH /:id/solution-review`). `SOLVED` encaminha ao requerente revisar a solução. Cancelar: `PATCH /:id/cancel`. Admin global pode alterar status mesmo em chamados bloqueados (ex.: `COMPLETED` → `PENDING` para reabrir). Demais papéis só alteram enquanto o chamado não estiver bloqueado.',
   })
   @ApiOkResponse({ type: RequestResponseDto })
   @ApiForbiddenResponse({ description: 'Sem permissão para alterar o status' })
   @ApiNotFoundResponse({ description: 'Solicitação não encontrada' })
-  @ApiBadRequestResponse({ description: 'Transição de status inválida ou solicitação cancelada/arquivada' })
+  @ApiBadRequestResponse({
+    description:
+      'Transição de status inválida ou solicitação cancelada/arquivada',
+  })
   changeStatus(
     @Param('id') id: string,
     @Body() body: ChangeRequestStatusDto,
@@ -150,7 +158,9 @@ export class RequestsController {
   @ApiOkResponse({ type: RequestResponseDto })
   @ApiForbiddenResponse({ description: 'Sem permissão para revisar a solução' })
   @ApiNotFoundResponse({ description: 'Solicitação não encontrada' })
-  @ApiBadRequestResponse({ description: 'Solicitação não está com status SOLVED' })
+  @ApiBadRequestResponse({
+    description: 'Solicitação não está com status SOLVED',
+  })
   reviewSolution(
     @Param('id') id: string,
     @Body() body: ReviewRequestSolutionDto,
@@ -167,18 +177,27 @@ export class RequestsController {
   @Patch(':id/assign')
   @ApiOperation({
     summary: 'Atribuir responsáveis a uma solicitação',
-    description: 'Substitui toda a lista atual de responsáveis. Envie `userIds: []` para remover todos. Os usuários devem ser membros do setor.',
+    description:
+      'Substitui toda a lista atual de responsáveis. Envie `userIds: []` para remover todos. Os usuários devem ser membros do setor.',
   })
   @ApiOkResponse({ type: RequestResponseDto })
   @ApiForbiddenResponse({ description: 'Sem permissão para atribuir' })
   @ApiNotFoundResponse({ description: 'Solicitação não encontrada' })
-  @ApiBadRequestResponse({ description: 'Um ou mais usuários não são membros do setor, ou solicitação cancelada/arquivada' })
+  @ApiBadRequestResponse({
+    description:
+      'Um ou mais usuários não são membros do setor, ou solicitação cancelada/arquivada',
+  })
   assign(
     @Param('id') id: string,
     @Body() dto: AssignRequestDto,
     @Request() req: AuthenticatedRequest,
   ): Promise<RequestResponseDto> {
-    return this.requestsService.assign(id, req.user.sub, req.user.isGlobalAdmin, dto);
+    return this.requestsService.assign(
+      id,
+      req.user.sub,
+      req.user.isGlobalAdmin,
+      dto,
+    );
   }
 
   @Patch(':id/observers')
@@ -188,7 +207,9 @@ export class RequestsController {
       'Substitui toda a lista atual. Permitido para criador, gerente, admin, ou técnico responsável quando o setor permite edição por técnico (onlyManagerCanEdit=false). Envie `userIds: []` para remover todos.',
   })
   @ApiOkResponse({ type: RequestResponseDto })
-  @ApiForbiddenResponse({ description: 'Sem permissão para alterar observadores' })
+  @ApiForbiddenResponse({
+    description: 'Sem permissão para alterar observadores',
+  })
   @ApiNotFoundResponse({ description: 'Solicitação não encontrada' })
   @ApiBadRequestResponse({ description: 'Solicitação cancelada ou arquivada' })
   setObservers(
@@ -196,7 +217,12 @@ export class RequestsController {
     @Body() dto: SetObserversDto,
     @Request() req: AuthenticatedRequest,
   ): Promise<RequestResponseDto> {
-    return this.requestsService.setObservers(id, req.user.sub, req.user.isGlobalAdmin, dto);
+    return this.requestsService.setObservers(
+      id,
+      req.user.sub,
+      req.user.isGlobalAdmin,
+      dto,
+    );
   }
 
   @Patch(':id/cancel')
@@ -204,34 +230,48 @@ export class RequestsController {
   @ApiOkResponse({ type: RequestResponseDto })
   @ApiForbiddenResponse({ description: 'Sem permissão para cancelar' })
   @ApiNotFoundResponse({ description: 'Solicitação não encontrada' })
-  @ApiBadRequestResponse({ description: 'Solicitação já cancelada ou arquivada' })
+  @ApiBadRequestResponse({
+    description: 'Solicitação já cancelada ou arquivada',
+  })
   cancel(
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
   ): Promise<RequestResponseDto> {
-    return this.requestsService.cancel(id, req.user.sub, req.user.isGlobalAdmin);
+    return this.requestsService.cancel(
+      id,
+      req.user.sub,
+      req.user.isGlobalAdmin,
+    );
   }
 
   @Patch(':id/archive')
   @ApiOperation({
     summary: 'Arquivar uma solicitação',
-    description: 'Apenas solicitações com status `COMPLETED` podem ser arquivadas.',
+    description:
+      'Apenas solicitações com status `COMPLETED` podem ser arquivadas.',
   })
   @ApiOkResponse({ type: RequestResponseDto })
   @ApiForbiddenResponse({ description: 'Sem permissão para arquivar' })
   @ApiNotFoundResponse({ description: 'Solicitação não encontrada' })
-  @ApiBadRequestResponse({ description: 'Solicitação não está concluída ou já está arquivada' })
+  @ApiBadRequestResponse({
+    description: 'Solicitação não está concluída ou já está arquivada',
+  })
   archive(
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
   ): Promise<RequestResponseDto> {
-    return this.requestsService.archive(id, req.user.sub, req.user.isGlobalAdmin);
+    return this.requestsService.archive(
+      id,
+      req.user.sub,
+      req.user.isGlobalAdmin,
+    );
   }
 
   @Get(':id/messages')
   @ApiOperation({
     summary: 'Listar mensagens de uma solicitação',
-    description: 'Retorna as mensagens do chamado de forma paginada para suportar carregamento incremental no front-end.',
+    description:
+      'Retorna as mensagens do chamado de forma paginada para suportar carregamento incremental no front-end.',
   })
   @ApiPaginatedResponse(RequestMessageResponseDto)
   @ApiForbiddenResponse({ description: 'Sem permissão para visualizar' })
@@ -267,18 +307,12 @@ export class RequestsController {
     );
   }
 
-  @Get(':id/history')
-  @UseGuards(GlobalAdminGuard)
-  @ApiOperation({ summary: 'Histórico de uma solicitação', description: 'Acesso restrito ao admin global.' })
-  @ApiOkResponse({ type: [RequestHistoryEntryDto] })
-  @ApiForbiddenResponse({ description: 'Acesso permitido apenas para admin global' })
-  @ApiNotFoundResponse({ description: 'Solicitação não encontrada' })
-  findHistory(@Param('id') id: string) {
-    return this.requestsService.findHistory(id);
-  }
-
   @Patch(':id')
-  @ApiOperation({ summary: 'Editar título, descrição ou prioridade de uma solicitação' })
+  @ApiOperation({
+    summary: 'Editar título, descrição ou prioridade de uma solicitação',
+    description:
+      'Status não é alterado aqui — use `PATCH /requests/:id/status`.',
+  })
   @ApiOkResponse({ type: RequestResponseDto })
   @ApiForbiddenResponse({ description: 'Sem permissão para editar' })
   @ApiNotFoundResponse({ description: 'Solicitação não encontrada' })
@@ -295,5 +329,4 @@ export class RequestsController {
       updateRequestDto,
     );
   }
-
 }

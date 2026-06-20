@@ -345,49 +345,85 @@ export enum Permission {
 
 ## API
 
+> Todas as rotas abaixo têm prefixo global `/api`. Rotas **admin** exigem `isGlobalAdmin`.
+
 ### Auth
 | Método | Rota | Quem | Body |
 |--------|------|------|------|
-| POST | `/auth/login` | público | `{ email, password }` |
+| POST | `/auth/login` | público | `{ username, password }` |
+| GET | `/auth/profile` | autenticado | — |
+
+### Me (operacional)
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/me/sectors` | Setores do usuário com contagem por status |
+| GET | `/me/requests` | Chamados criados ou observados |
+| GET | `/me/requests/assigned` | Chamados atribuídos ao usuário |
 
 ### Users (admin)
 | Método | Rota | Body |
 |--------|------|------|
-| POST | `/users` | `{ name, email, password, isGlobalAdmin? }` |
-| GET | `/users` | — |
-| GET | `/users/:id` | — |
-| PATCH | `/users/:id` | `{ name?, email?, password? }` |
-| PATCH | `/users/:id/deactivate` | — |
+| POST | `/admin/users` | `{ username, email, password, firstName, lastName, isGlobalAdmin? }` |
+| GET | `/admin/users` | query: paginação, search, isActive |
+| GET | `/admin/users/:id` | — |
+| PATCH | `/admin/users/:id` | campos do usuário |
+| PATCH | `/admin/users/:id/toggle-active` | — |
+| PATCH | `/admin/users/:id/reset-password` | `{ newPassword }` |
 
 ### Sectors (admin)
 | Método | Rota | Body |
 |--------|------|------|
-| POST | `/sectors` | `{ name, slug }` |
-| GET | `/sectors` | — |
-| GET | `/sectors/:id` | — |
-| PATCH | `/sectors/:id` | `{ name?, active? }` |
-| POST | `/sectors/:id/members` | `{ userId, role }` |
-| GET | `/sectors/:id/members` | — |
-| DELETE | `/sectors/:id/members/:userId` | — |
+| POST | `/admin/sectors` | `{ name, onlyManagerCanView?, ... }` |
+| GET | `/admin/sectors` | paginado |
+| GET | `/admin/sectors/:id` | — |
+| GET | `/admin/sectors/:id/available-users` | usuários sem membership no setor |
+| PATCH | `/admin/sectors/:id` | — |
+| PATCH | `/admin/sectors/:id/toggle-active` | — |
 
-### Requests
+### Memberships (admin)
+| Método | Rota |
+|--------|------|
+| POST | `/admin/sectors/:sectorId/members` |
+| GET | `/admin/sectors/:sectorId/members` |
+| GET/PATCH/DELETE | `/admin/sectors/:sectorId/members/:id` |
+
+### Sector services (admin)
+| Método | Rota |
+|--------|------|
+| CRUD | `/admin/sectors/:sectorId/services` |
+
+### Setores (operacional)
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/sectors/services/options` | Opções setor+serviço para criar chamado |
+
+### Requests por setor (operacional)
+| Método | Rota |
+|--------|------|
+| GET | `/sectors/:sectorId/requests` |
+| GET | `/sectors/:sectorId/assignee-options` |
+
+### Requests (operacional)
 | Método | Rota | Body |
 |--------|------|------|
-| POST | `/requests` | `{ title, description, sectorId }` |
+| POST | `/requests` | `{ title, description, sectorServiceId, observerIds? }` |
 | GET | `/requests` | query: `?sectorId=&status=` |
-| GET | `/requests/:id` | — |
-| PATCH | `/requests/:id` | `{ title?, description? }` |
-| PATCH | `/requests/:id/assign` | `{ assigneeId }` |
-| PATCH | `/requests/:id/status` | `{ status }` |
+| GET | `/requests/observer-options` | select de observadores |
+| GET | `/requests/:id` | detalhe + permissions (sem messages/history) |
+| PATCH | `/requests/:id` | `{ title?, description?, priority? }` — status via `/status` |
+| PATCH | `/requests/:id/status` | `{ status: PENDING \| IN_PROGRESS \| SOLVED }` — admin reabre `COMPLETED`; `COMPLETED` só via `solution-review` |
+| PATCH | `/requests/:id/solution-review` | `{ approved }` |
+| PATCH | `/requests/:id/assign` | `{ userIds }` |
+| PATCH | `/requests/:id/observers` | `{ userIds }` |
 | PATCH | `/requests/:id/cancel` | — |
-| GET | `/requests/:id/permissions/me` | — |
+| PATCH | `/requests/:id/archive` | — |
 
 ### Messages & History
-| Método | Rota | Body |
+| Método | Rota | Quem |
 |--------|------|------|
-| POST | `/requests/:id/messages` | `{ content }` |
-| GET | `/requests/:id/messages` | — |
-| GET | `/requests/:id/history` | — |
+| POST | `/requests/:id/messages` | operacional (RBAC) |
+| GET | `/requests/:id/messages` | operacional (RBAC) |
+| GET | `/admin/requests/:id/history` | **admin global** |
 
 ### Respostas de erro comuns
 
@@ -403,58 +439,40 @@ export enum Permission {
 
 ---
 
-## Estrutura de pastas final
+## Estrutura de pastas (implementação atual)
 
 ```
 src/
 ├── main.ts
 ├── app.module.ts
 ├── prisma/
-│   ├── prisma.module.ts
-│   └── prisma.service.ts
-├── common/
-│   ├── decorators/
-│   │   ├── current-user.decorator.ts
-│   │   └── require-permission.decorator.ts
-│   ├── guards/
-│   │   ├── jwt-auth.guard.ts
-│   │   └── permission.guard.ts
-│   └── filters/
-│       └── http-exception.filter.ts
-└── modules/
-    ├── auth/
-    │   ├── auth.module.ts
-    │   ├── auth.controller.ts
-    │   ├── auth.service.ts
-    │   ├── jwt.strategy.ts
-    │   └── dto/login.dto.ts
-    ├── users/
-    │   ├── users.module.ts
-    │   ├── users.controller.ts
-    │   ├── users.service.ts
-    │   └── dto/
-    ├── sectors/
-    │   ├── sectors.module.ts
-    │   ├── sectors.controller.ts
-    │   ├── sectors.service.ts
-    │   └── dto/
-    ├── requests/
-    │   ├── requests.module.ts
-    │   ├── requests.controller.ts
+├── common/                  # dto, filters, decorators, utils
+├── auth/
+├── users/                   # UsersController → /admin/users
+├── roles/                   # /admin/roles
+├── sectors/
+│   ├── sectors.controller.ts          # GET /sectors/services/options
+│   ├── admin-sectors.controller.ts    # /admin/sectors
+│   └── sectors.service.ts
+├── sector-services/         # /admin/sectors/:sectorId/services
+├── user-sector-membership/  # /admin/sectors/:sectorId/members
+├── me/
+├── request-history/         # RequestHistoryService
+├── request-messages/        # RequestMessagesService
+└── requests/
+    ├── controllers/
+    ├── services/
     │   ├── requests.service.ts
-    │   └── dto/
-    ├── messages/
-    │   ├── messages.module.ts
-    │   ├── messages.controller.ts
-    │   └── messages.service.ts
-    ├── history/
-    │   ├── history.module.ts
-    │   └── history.service.ts
-    └── permissions/
-        ├── permissions.module.ts
-        ├── permission.service.ts
-        ├── permission.types.ts
-        └── permission.service.spec.ts
+    │   ├── request-permissions.service.ts
+    │   ├── request-actions.service.ts
+    │   └── request-messages-access.service.ts
+    ├── schedules/
+    │   └── auto-complete/   # job cron, settings, controller admin
+    ├── helpers/
+    ├── dto/
+    ├── constants/
+    ├── types/
+    └── requests.module.ts
 ```
 
 ---
@@ -549,9 +567,9 @@ npx prisma db seed
 - DTOs com `class-validator`
 
 **Validar:**
-- [ ] Admin cria usuário
-- [ ] Usuário comum → 403 em POST /users
-- [ ] Deactivate impede login
+- [ ] Admin cria usuário via `POST /admin/users`
+- [ ] Usuário comum → 403 em `POST /admin/users`
+- [ ] toggle-active impede login
 
 ---
 
@@ -561,8 +579,9 @@ npx prisma db seed
 
 **Criar:**
 - `sectors/sectors.service.ts`
-- `sectors/sectors.controller.ts`
-- Endpoints de members dentro do controller de sectors
+- `sectors/admin-sectors.controller.ts` — CRUD em `/admin/sectors`
+- `sectors/sectors.controller.ts` — rota operacional `GET /sectors/services/options`
+- `user-sector-membership/` — memberships em `/admin/sectors/:sectorId/members`
 
 **Validar:**
 - [ ] Admin cria setor
@@ -571,33 +590,21 @@ npx prisma db seed
 
 ---
 
-### Fase 5 — Permissions
+### Fase 5 — Permissions (implementado em `requests/services/`)
 
-**Objetivo:** centralizar toda autorização antes de implementar requests.
+**Objetivo:** centralizar autorização de solicitações.
 
-**Criar `permission.service.ts` com:**
-
-```typescript
-class PermissionService {
-  can(user, permission, request?, membership?): boolean
-  getAllowedPermissions(user, request, memberships): Permission[]
-  buildListWhere(user, memberships): Prisma.RequestWhereInput
-}
-```
-
-**Implementar nesta ordem:**
-1. `can()` para admin (sempre true)
-2. `can()` para criador
-3. `can()` para manager
-4. `can()` para technician
-5. `buildListWhere()` — união dos filtros
-6. Testes unitários (`permission.service.spec.ts`)
+**Implementado em `request-permissions.service.ts`:**
+- `resolvePermissions()` — flags para UI (`canView`, `canEdit`, …)
+- `canChangeStatus` — admin global também em status bloqueados (ex.: reabrir `COMPLETED`); demais papéis só enquanto não bloqueado
+- `buildListWhere()` / `buildSectorVisibilityWhere()` — filtros de listagem
+- `assertRequestActionsAllowed()` — bloqueio em status finais
 
 **Validar:**
-- [ ] 5+ testes passando
+- [ ] 80+ testes em `requests.service.spec.ts`
 - [ ] Manager vê todas do setor
-- [ ] Technician não vê atribuídas a outros
-- [ ] Criador sempre passa em VIEW das suas
+- [ ] Technician respeita `onlyManagerCanView`
+- [ ] Criador sempre vê as suas
 
 ---
 
@@ -605,16 +612,17 @@ class PermissionService {
 
 **Objetivo:** criar, listar e ver solicitação.
 
-**Criar:**
-- `requests/requests.service.ts`
-- `requests/requests.controller.ts`
-- `history/history.service.ts` — só método `log()` por enquanto
-- DTOs: `CreateRequestDto`, `UpdateRequestDto`
+**Criar (estrutura atual):**
+- `requests/services/requests.service.ts` — orquestração
+- `requests/services/request-permissions.service.ts`
+- `src/request-history/` — histórico (`RequestHistoryService`)
+- `requests/controllers/requests.controller.ts`
+- DTOs em `requests/dto/`
 
 **POST /requests:**
 1. Validar setor existe e ativo
 2. Criar com `status: NOVA`, `createdById: user.id`
-3. `historyService.log({ action: 'CREATED' })`
+3. `historyService.recordCreated()` (via `RequestHistoryService`)
 
 **GET /requests:**
 1. `permissionService.buildListWhere(user)`
@@ -687,7 +695,7 @@ async assign(requestId, assigneeId, user) {
 
 **GET /requests/:id/messages** — paginado (`page`, `limit`) e ordenado por `createdAt ASC`
 
-**GET /requests/:id/history** — ordenar por `createdAt ASC`
+**GET /admin/requests/:id/history** — somente admin global; ordenar por `createdAt ASC`
 
 **GET /requests/:id/permissions/me:**
 ```json
@@ -705,7 +713,7 @@ async assign(requestId, assigneeId, user) {
 
 ### Fase 9 — Testes
 
-**Unitários** — `permission.service.spec.ts`:
+**Unitários** — `requests.service.spec.ts` (80+ casos):
 - [ ] Admin pode tudo
 - [ ] Criador cancela se NOVA
 - [ ] Criador não cancela se EM_ANDAMENTO
@@ -832,25 +840,29 @@ O MVP está pronto quando:
 
 ## Fase 6+ — Requests (rotas)
 
-Permissões e filtros no **service** via `req.user` + membership + flags do setor (`onlyManagerCanView/Edit/Archive`). `isGlobalAdmin` bypassa tudo.
+Permissões e filtros em `requests/services/request-permissions.service.ts`. `isGlobalAdmin` bypassa tudo.
 
-**Listagem (`GET .../requests`):** MANAGER vê todos; TECHNICIAN com `onlyManagerCanView: true` vê só atribuídos/criados por ele; com `false` vê todos do setor.
+**Listagem:** `GET /sectors/:sectorId/requests` (principal) ou `GET /me/requests` / `GET /requests`.
 
-**Validações no service:** `sectorServiceId` pertence ao `sectorId`; criador ≠ responsável no `assign`; responsável deve ser membro do setor; criar sem `assignedToId` (fila do setor).
-
-| Método | Rota | Módulo | Para quê | Retorna |
-|--------|------|--------|----------|---------|
-| `GET` | `/auth/profile` | `auth` | Header / sessão | `{ sub, email, username, isGlobalAdmin }` |
-| `GET` | `/me/sectors` | `me` | Home — setores do usuário | Paginado: `{ id, name, role, permissions, counts por status }`. Query: `?status=` |
-| `GET` | `/sectors/:sectorId/services/options` | `sector-services` | Select ao criar chamado | `[{ id, name }]` — só ativos. Valida membro do setor |
-| `GET` | `/sectors/:sectorId/requests` | `requests` | Fila do setor | `{ sector, data[], meta }` — filtra por permissão do usuário. Query: `?status=&priority=&search=` |
-| `POST` | `/sectors/:sectorId/requests` | `requests` | Criar chamado | Body: `{ title, description, sectorServiceId, priority? }`. `assignedTo: null`. History: `CREATED` |
-| `GET` | `/requests/:id` | `requests` | Detalhe (1 request) | Chamado + sector + service + pessoas + `permissions` + `messages` + `history` (se permitido) |
-| `PATCH` | `/requests/:id` | `requests` | Editar campos | Valida `canEdit`. History: `UPDATED` |
-| `PATCH` | `/requests/:id/status` | `requests` | Mudar status | Valida `canChangeStatus`. History: `STATUS_CHANGED` |
-| `PATCH` | `/requests/:id/assign` | `requests` | Atribuir técnico | Só MANAGER. Body: `{ assignedToId }`. Valida membro + criador ≠ responsável. History: `ASSIGNED` |
-| `PATCH` | `/requests/:id/cancel` | `requests` | Cancelar | Valida permissão. History: `CANCELLED` |
-| `PATCH` | `/requests/:id/archive` | `requests` | Arquivar | Respeita `onlyManagerCanArchive`. History: `ARCHIVED` |
-| `POST` | `/requests/:id/messages` | `requests` | Enviar mensagem | Valida `canSendMessage`. History: `MESSAGE_SENT` |
+| Método | Rota | Módulo | Para quê |
+|--------|------|--------|----------|
+| `GET` | `/auth/profile` | auth | Dados do JWT |
+| `GET` | `/me/sectors` | me | Home — setores do usuário |
+| `GET` | `/me/requests` | me | Meus chamados (criados/observados) |
+| `GET` | `/me/requests/assigned` | me | Atribuídos a mim |
+| `GET` | `/sectors/services/options` | sectors | Select ao criar chamado |
+| `GET` | `/sectors/:sectorId/requests` | requests | Fila do setor |
+| `GET` | `/sectors/:sectorId/assignee-options` | requests | Select de responsáveis |
+| `POST` | `/requests` | requests | Criar chamado |
+| `GET` | `/requests/:id` | requests | Detalhe + permissions |
+| `PATCH` | `/requests/:id` | requests | Editar campos |
+| `PATCH` | `/requests/:id/status` | requests | `PENDING`/`IN_PROGRESS`/`SOLVED`; admin reabre `COMPLETED` |
+| `PATCH` | `/requests/:id/solution-review` | requests | Aprovar/rejeitar SOLVED |
+| `PATCH` | `/requests/:id/assign` | requests | Atribuir responsáveis |
+| `PATCH` | `/requests/:id/observers` | requests | Definir observadores |
+| `PATCH` | `/requests/:id/cancel` | requests | Cancelar |
+| `PATCH` | `/requests/:id/archive` | requests | Arquivar |
+| `POST/GET` | `/requests/:id/messages` | requests | Mensagens |
+| `GET` | `/admin/requests/:id/history` | requests | Histórico (admin global) |
 
 *Guia de implementação — junho/2026*

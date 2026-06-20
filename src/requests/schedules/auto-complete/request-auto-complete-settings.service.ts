@@ -3,7 +3,7 @@ import { CronJob } from 'cron';
 import {
   AutoCompleteDurationUnit,
   RequestAutoCompleteSetting,
-} from '../../generated/prisma/client';
+} from '../../../../generated/prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UpdateRequestAutoCompleteSettingsDto } from './dto/update-request-auto-complete-settings.dto';
 import { RequestAutoCompleteSettingsResponseDto } from './dto/request-auto-complete-settings-response.dto';
@@ -14,6 +14,7 @@ const SETTINGS_ID = 'default';
 const CRON_PRESETS = [
   { label: 'A cada 10 minutos', cronExpression: '*/10 * * * *' },
   { label: 'A cada hora', cronExpression: '0 * * * *' },
+  { label: 'Todo dia às 6h', cronExpression: '0 6 * * *' },
   { label: 'Todo dia às 3h', cronExpression: '0 3 * * *' },
 ] as const;
 
@@ -24,7 +25,10 @@ export class RequestAutoCompleteSettingsService {
   getOptions(): RequestAutoCompleteSettingsOptionsDto {
     return {
       cronPresets: [...CRON_PRESETS],
-      durationUnits: [AutoCompleteDurationUnit.MINUTES, AutoCompleteDurationUnit.DAYS],
+      durationUnits: [
+        AutoCompleteDurationUnit.MINUTES,
+        AutoCompleteDurationUnit.DAYS,
+      ],
     };
   }
 
@@ -71,8 +75,10 @@ export class RequestAutoCompleteSettingsService {
       this.assertValidCronExpression(dto.cronExpression);
     }
 
-    const nextUnit = dto.durationUnit ?? (await this.ensureSettings()).durationUnit;
-    const nextValue = dto.durationValue ?? (await this.ensureSettings()).durationValue;
+    const nextUnit =
+      dto.durationUnit ?? (await this.ensureSettings()).durationUnit;
+    const nextValue =
+      dto.durationValue ?? (await this.ensureSettings()).durationValue;
 
     if (dto.durationValue !== undefined || dto.durationUnit !== undefined) {
       this.assertValidDuration(nextValue, nextUnit);
@@ -84,8 +90,12 @@ export class RequestAutoCompleteSettingsService {
         ...(dto.cronExpression !== undefined
           ? { cronExpression: this.normalizeCronExpression(dto.cronExpression) }
           : {}),
-        ...(dto.durationValue !== undefined ? { durationValue: dto.durationValue } : {}),
-        ...(dto.durationUnit !== undefined ? { durationUnit: dto.durationUnit } : {}),
+        ...(dto.durationValue !== undefined
+          ? { durationValue: dto.durationValue }
+          : {}),
+        ...(dto.durationUnit !== undefined
+          ? { durationUnit: dto.durationUnit }
+          : {}),
         updatedById,
       },
     });
@@ -94,7 +104,12 @@ export class RequestAutoCompleteSettingsService {
   }
 
   normalizeCronExpression(expression: string): string {
-    return expression.replace(/["']/g, '').trim().split(/\s+/).slice(0, 5).join(' ');
+    return expression
+      .replace(/["']/g, '')
+      .trim()
+      .split(/\s+/)
+      .slice(0, 5)
+      .join(' ');
   }
 
   assertValidCronExpression(expression: string): void {
@@ -118,11 +133,15 @@ export class RequestAutoCompleteSettingsService {
     unit: AutoCompleteDurationUnit,
   ): void {
     if (unit === AutoCompleteDurationUnit.MINUTES && value > 1440) {
-      throw new BadRequestException('durationValue em minutos não pode exceder 1440');
+      throw new BadRequestException(
+        'durationValue em minutos não pode exceder 1440',
+      );
     }
 
     if (unit === AutoCompleteDurationUnit.DAYS && value > 365) {
-      throw new BadRequestException('durationValue em dias não pode exceder 365');
+      throw new BadRequestException(
+        'durationValue em dias não pode exceder 365',
+      );
     }
   }
 
@@ -132,8 +151,8 @@ export class RequestAutoCompleteSettingsService {
       update: {},
       create: {
         id: SETTINGS_ID,
-        cronExpression: '0 3 * * *',
-        durationValue: 7,
+        cronExpression: '0 6 * * *',
+        durationValue: 1,
         durationUnit: AutoCompleteDurationUnit.DAYS,
       },
     });

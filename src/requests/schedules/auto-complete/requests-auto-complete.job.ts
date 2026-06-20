@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
-import { RequestsService } from './requests.service';
+import { RequestAutoCompleteService } from './request-auto-complete.service';
 import { RequestAutoCompleteSettingsService } from './request-auto-complete-settings.service';
 
 const JOB_NAME = 'requests-auto-complete';
@@ -11,7 +11,7 @@ export class RequestsAutoCompleteJob implements OnModuleInit {
   private readonly logger = new Logger(RequestsAutoCompleteJob.name);
 
   constructor(
-    private readonly requestsService: RequestsService,
+    private readonly autoCompleteService: RequestAutoCompleteService,
     private readonly settingsService: RequestAutoCompleteSettingsService,
     private readonly schedulerRegistry: SchedulerRegistry,
   ) {}
@@ -22,7 +22,8 @@ export class RequestsAutoCompleteJob implements OnModuleInit {
   }
 
   async refreshSchedule(cronExpression: string): Promise<void> {
-    const normalized = this.settingsService.normalizeCronExpression(cronExpression);
+    const normalized =
+      this.settingsService.normalizeCronExpression(cronExpression);
     this.settingsService.assertValidCronExpression(normalized);
 
     if (this.schedulerRegistry.doesExist('cron', JOB_NAME)) {
@@ -39,16 +40,21 @@ export class RequestsAutoCompleteJob implements OnModuleInit {
     this.logger.log(`Job "${JOB_NAME}" agendado com cron: ${normalized}`);
   }
 
-  /** Dispara `RequestsService.autoCompleteExpiredSolvedRequests()` */
   async handleCron(): Promise<void> {
     try {
-      const count = await this.requestsService.autoCompleteExpiredSolvedRequests();
+      const count =
+        await this.autoCompleteService.completeExpiredSolvedRequests();
 
       if (count > 0) {
-        this.logger.log(`${count} solicitação(ões) SOLVED concluída(s) automaticamente`);
+        this.logger.log(
+          `${count} solicitação(ões) SOLVED concluída(s) automaticamente`,
+        );
       }
     } catch (error) {
-      this.logger.error('Falha ao concluir solicitações SOLVED expiradas', error);
+      this.logger.error(
+        'Falha ao concluir solicitações SOLVED expiradas',
+        error,
+      );
     }
   }
 }

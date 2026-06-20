@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -168,8 +172,11 @@ export class UsersService {
     });
   }
 
-  async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<ResetPasswordResponseDto> {
-    const UniqueIdentifier = resetPasswordDto.username ?? resetPasswordDto.email;
+  async resetPassword(
+    resetPasswordDto: ResetPasswordDto,
+  ): Promise<ResetPasswordResponseDto> {
+    const UniqueIdentifier =
+      resetPasswordDto.username ?? resetPasswordDto.email;
 
     if (!UniqueIdentifier) {
       throw new BadRequestException('Identificador de usuário não encontrado');
@@ -177,10 +184,7 @@ export class UsersService {
 
     const userExists = await this.prisma.user.findFirst({
       where: {
-        OR: [
-        { username: UniqueIdentifier },
-        { email: UniqueIdentifier },
-        ],
+        OR: [{ username: UniqueIdentifier }, { email: UniqueIdentifier }],
       },
     });
 

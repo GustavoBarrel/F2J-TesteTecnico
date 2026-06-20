@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RequestsController } from './requests.controller';
-import { RequestsService } from './requests.service';
+import { RequestsService } from '../services/requests.service';
 import { UsersService } from 'src/users/users.service';
 
 const mockRequestsService = {

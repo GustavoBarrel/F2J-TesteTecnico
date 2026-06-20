@@ -7,6 +7,7 @@ import {
 
 export type HistoryUserSummary = {
   id: string;
+  username: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -15,6 +16,13 @@ export type HistoryUserSummary = {
 export type RequestHistoryMetadata = {
   description: string;
   [key: string]: unknown;
+};
+
+export type RequestHistoryWritePayload = {
+  action: RequestHistoryAction;
+  fromStatus?: RequestStatus | null;
+  toStatus?: RequestStatus | null;
+  metadata?: Prisma.InputJsonValue;
 };
 
 const STATUS_LABELS: Record<RequestStatus, string> = {
@@ -164,7 +172,7 @@ export function extractHistoryDescription(metadata: unknown): string | null {
     metadata &&
     typeof metadata === 'object' &&
     'description' in metadata &&
-    typeof (metadata as { description: unknown }).description === 'string'
+    typeof metadata.description === 'string'
   ) {
     return (metadata as { description: string }).description;
   }
@@ -176,11 +184,7 @@ export function buildCreatedHistory(
   title: string,
   sectorServiceName: string,
   observers: HistoryUserSummary[],
-): {
-  action: typeof RequestHistoryAction.CREATED;
-  toStatus: RequestStatus;
-  metadata: Prisma.InputJsonValue;
-} {
+): RequestHistoryWritePayload {
   const observerPart =
     observers.length > 0
       ? ` Observadores iniciais: ${formatUserList(observers)}.`
@@ -206,28 +210,20 @@ export function buildCreatedHistory(
 export function buildMessageSentHistory(
   messageId: string,
   content: string,
-): {
-  action: typeof RequestHistoryAction.MESSAGE_SENT;
-  metadata: Prisma.InputJsonValue;
-} {
+): RequestHistoryWritePayload {
   return {
     action: RequestHistoryAction.MESSAGE_SENT,
-    metadata: historyMetadata(
-      `Mensagem enviada: "${truncateText(content)}".`,
-      { messageId, contentPreview: truncateText(content) },
-    ),
+    metadata: historyMetadata(`Mensagem enviada: "${truncateText(content)}".`, {
+      messageId,
+      contentPreview: truncateText(content),
+    }),
   };
 }
 
 export function buildStatusChangedHistory(
   fromStatus: RequestStatus,
   toStatus: RequestStatus,
-): {
-  action: typeof RequestHistoryAction.STATUS_CHANGED;
-  fromStatus: RequestStatus;
-  toStatus: RequestStatus;
-  metadata: Prisma.InputJsonValue;
-} {
+): RequestHistoryWritePayload {
   return {
     action: RequestHistoryAction.STATUS_CHANGED,
     fromStatus,
@@ -244,15 +240,35 @@ export function buildStatusChangedHistory(
   };
 }
 
+export function buildSolutionReviewHistory(
+  fromStatus: RequestStatus,
+  toStatus: RequestStatus,
+  approved: boolean,
+): RequestHistoryWritePayload {
+  const statusHistory = buildStatusChangedHistory(fromStatus, toStatus);
+
+  return {
+    action: statusHistory.action,
+    fromStatus: statusHistory.fromStatus,
+    toStatus: statusHistory.toStatus,
+    metadata: historyMetadata(
+      approved
+        ? 'Solução aprovada pelo requerente. Solicitação concluída.'
+        : 'Solução rejeitada pelo requerente. Solicitação retornou para em andamento.',
+      {
+        approved,
+        fromStatus,
+        toStatus,
+        kind: approved ? 'SOLUTION_APPROVED' : 'SOLUTION_REJECTED',
+      },
+    ),
+  };
+}
+
 export function buildAutoCompletedHistory(
   value: number,
   unit: 'minutes' | 'days',
-): {
-  action: typeof RequestHistoryAction.STATUS_CHANGED;
-  fromStatus: RequestStatus;
-  toStatus: RequestStatus;
-  metadata: Prisma.InputJsonValue;
-} {
+): RequestHistoryWritePayload {
   const label = unit === 'minutes' ? 'minuto(s)' : 'dia(s)';
 
   return {
@@ -278,10 +294,7 @@ export function buildAutoCompletedHistory(
 export function buildPriorityChangedHistory(
   fromPriority: RequestPriority,
   toPriority: RequestPriority,
-): {
-  action: typeof RequestHistoryAction.PRIORITY_CHANGED;
-  metadata: Prisma.InputJsonValue;
-} {
+): RequestHistoryWritePayload {
   return {
     action: RequestHistoryAction.PRIORITY_CHANGED,
     metadata: historyMetadata(
@@ -300,10 +313,7 @@ export function buildFieldUpdatedHistory(
   field: 'title' | 'description',
   fromValue: string,
   toValue: string,
-): {
-  action: typeof RequestHistoryAction.UPDATED;
-  metadata: Prisma.InputJsonValue;
-} {
+): RequestHistoryWritePayload {
   const fieldLabel = field === 'title' ? 'Título' : 'Descrição';
 
   return {
@@ -323,10 +333,7 @@ export function buildAssignHistory(
   previousUsers: HistoryUserSummary[],
   nextUsers: HistoryUserSummary[],
   reassigned: boolean,
-): {
-  action: RequestHistoryAction;
-  metadata: Prisma.InputJsonValue;
-} {
+): RequestHistoryWritePayload {
   return {
     action: reassigned
       ? RequestHistoryAction.REASSIGNED
@@ -350,10 +357,7 @@ export function buildAssignHistory(
 export function buildObserversHistory(
   previousUsers: HistoryUserSummary[],
   nextUsers: HistoryUserSummary[],
-): {
-  action: typeof RequestHistoryAction.UPDATED;
-  metadata: Prisma.InputJsonValue;
-} {
+): RequestHistoryWritePayload {
   return {
     action: RequestHistoryAction.UPDATED,
     metadata: historyMetadata(
@@ -375,12 +379,7 @@ export function buildObserversHistory(
 
 export function buildCancelledHistory(
   fromStatus: RequestStatus,
-): {
-  action: typeof RequestHistoryAction.CANCELLED;
-  fromStatus: RequestStatus;
-  toStatus: RequestStatus;
-  metadata: Prisma.InputJsonValue;
-} {
+): RequestHistoryWritePayload {
   return {
     action: RequestHistoryAction.CANCELLED,
     fromStatus,
@@ -399,12 +398,7 @@ export function buildCancelledHistory(
 
 export function buildArchivedHistory(
   fromStatus: RequestStatus,
-): {
-  action: typeof RequestHistoryAction.ARCHIVED;
-  fromStatus: RequestStatus;
-  toStatus: RequestStatus;
-  metadata: Prisma.InputJsonValue;
-} {
+): RequestHistoryWritePayload {
   return {
     action: RequestHistoryAction.ARCHIVED,
     fromStatus,

@@ -79,13 +79,18 @@ export class RequestResponseDto {
   @ApiProperty({ type: [RequestUserSummaryDto] })
   observers: RequestUserSummaryDto[];
 
-  @ApiProperty()
+  @ApiProperty({ type: String, format: 'date-time' })
   createdAt: Date;
 
-  @ApiProperty()
+  @ApiProperty({ type: String, format: 'date-time' })
   updatedAt: Date;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'Preenchido quando o chamado entra em SOLVED',
+  })
   solvedAt: Date | null;
 
   @ApiProperty({ type: RequestPermissionsDto })
@@ -110,6 +115,12 @@ export class RequestHistoryEntryDto {
   @ApiProperty()
   id: string;
 
+  @ApiProperty({ description: 'ID da solicitação' })
+  requestId: string;
+
+  @ApiProperty({ description: 'ID do usuário que registrou a ação' })
+  userId: string;
+
   @ApiProperty({ enum: RequestHistoryAction })
   action: RequestHistoryAction;
 
@@ -119,16 +130,22 @@ export class RequestHistoryEntryDto {
   @ApiPropertyOptional({ enum: RequestStatus, nullable: true })
   toStatus: RequestStatus | null;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiPropertyOptional({
+    type: 'object',
+    nullable: true,
+    additionalProperties: true,
+    description: 'Metadados brutos da ação',
+  })
   metadata: unknown;
 
   @ApiPropertyOptional({
+    type: String,
     nullable: true,
     description: 'Texto legível descrevendo a ação registrada no histórico',
   })
   description: string | null;
 
-  @ApiProperty()
+  @ApiProperty({ type: String, format: 'date-time' })
   createdAt: Date;
 
   @ApiProperty({ type: RequestUserSummaryDto })
@@ -144,10 +161,4 @@ export class RequestDetailResponseDto extends RequestResponseDto {
 
   @ApiProperty({ type: RequestUserSummaryDto })
   createdBy: RequestUserSummaryDto;
-
-  @ApiProperty({ type: [RequestMessageResponseDto] })
-  messages: RequestMessageResponseDto[];
-
-  @ApiProperty({ type: [RequestHistoryEntryDto] })
-  history: RequestHistoryEntryDto[];
 }

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { AutoCompleteDurationUnit } from '../../../generated/prisma/client';
+import { AutoCompleteDurationUnit } from '../../../../../generated/prisma/client';
 
 export class CronPresetDto {
   @ApiProperty()

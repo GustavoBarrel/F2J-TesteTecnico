@@ -136,17 +136,19 @@ Legenda: ✅ permitido · ❌ negado
 | Cancelar | ✅ | ❌ | ✅ | ❌ |
 | Enviar mensagem | ✅ | ✅ | ✅ | ✅ |
 
-### 3.5 Onde fica no código
+### 3.5 Onde fica no código (implementação atual)
 
 ```
-src/modules/permissions/
-├── permission.service.ts    # can(), getVisibleRequestsFilter(), getAllowedActions()
-├── permission.guard.ts      # lê decorator @RequirePermission()
-└── decorators/
-    └── require-permission.decorator.ts
+src/requests/services/
+├── request-permissions.service.ts   # resolvePermissions(), buildListWhere(), buildSectorVisibilityWhere()
+├── request-actions.service.ts       # assign, status, cancel, archive, reviewSolution
+└── request-messages-access.service.ts  # permissões + delega ao RequestMessagesService
+
+src/request-messages/                # persistência de mensagens
+src/request-history/                 # persistência e builders de histórico
 ```
 
-**Por que assim:** mostra que você entende o problema de permissões configuráveis (documentado na Parte B) sem construir o motor inteiro.
+RBAC fixo por setor (`onlyManagerCanView/Edit/Archive`) + papel (`MANAGER`/`TECHNICIAN`). Sem motor de políticas configurável no MVP.
 
 ---
 
@@ -433,7 +435,7 @@ model RequestHistory {
 
 ## 6. Módulos e implementação (MVP)
 
-### 6.1 Estrutura de pastas
+### 6.1 Estrutura de pastas (implementação atual)
 
 ```
 src/
@@ -443,72 +445,131 @@ src/
 │   ├── prisma.module.ts
 │   └── prisma.service.ts
 ├── common/
-│   ├── decorators/       # @CurrentUser(), @RequirePermission()
-│   ├── guards/           # JwtAuthGuard
-│   └── filters/          # HttpExceptionFilter
-└── modules/
-    ├── auth/             # login, JWT
-    ├── users/            # CRUD admin
-    ├── sectors/          # CRUD setores + memberships
-    ├── requests/         # solicitações, assign, status
-    ├── messages/         # mensagens da solicitação
-    ├── history/          # grava e lista request_history
-    └── permissions/      # PermissionService (RBAC fixo)
+│   ├── decorators/       # ex.: ApiPaginatedResponse
+│   ├── dto/              # paginação, FindAllQuery
+│   ├── filters/          # HttpException, Prisma
+│   └── utils/
+├── auth/                 # POST /auth/login, GET /auth/profile, AuthGuard global
+├── users/                # admin: /admin/users
+├── roles/                # admin: /admin/roles
+├── sectors/
+│   ├── sectors.controller.ts       # operacional: GET /sectors/services/options
+│   ├── admin-sectors.controller.ts # admin: CRUD /admin/sectors
+│   └── sectors.service.ts
+├── sector-services/      # admin: /admin/sectors/:sectorId/services
+├── user-sector-membership/  # admin: /admin/sectors/:sectorId/members
+├── me/                   # GET /me/sectors, /me/requests, /me/requests/assigned
+├── request-history/      # RequestHistoryService — append e leitura de histórico
+├── request-messages/     # RequestMessagesService — create/list de mensagens
+└── requests/
+    ├── controllers/
+    │   ├── requests.controller.ts              # /requests
+    │   ├── sector-requests.controller.ts       # /sectors/:sectorId/requests|assignee-options
+    │   └── admin-requests.controller.ts        # /admin/requests/:id/history
+    ├── services/
+    │   ├── requests.service.ts                 # orquestração CRUD + listagens
+    │   ├── request-permissions.service.ts      # RBAC e visibilidade
+    │   ├── request-actions.service.ts          # assign, status, cancel, archive…
+    │   └── request-messages-access.service.ts  # permissões + mensagens
+    ├── schedules/
+    │   └── auto-complete/
+    │       ├── request-auto-complete.service.ts
+    │       ├── request-auto-complete-settings.service.ts
+    │       ├── requests-auto-complete.job.ts
+    │       ├── request-auto-complete-settings.controller.ts  # /admin/settings/request-auto-complete
+    │       └── dto/
+    ├── helpers/          # ex.: buildSolvedAtUpdate (request-status.helpers.ts)
+    ├── dto/
+    ├── constants/
+    ├── types/
+    └── requests.module.ts
 ```
+
+> **Nota:** Histórico e mensagens são módulos Nest separados (`request-history/`, `request-messages/`). Permissões e orquestração HTTP continuam em `requests/services/`.
 
 ### 6.2 Para que serve cada módulo
 
 | Módulo | Responsabilidade |
 |--------|------------------|
-| **auth** | `POST /auth/login` → JWT. Guard de autenticação. |
-| **users** | Admin cria/edita/desativa usuários. |
-| **sectors** | Admin CRUD setores. Admin vincula usuário a setor com papel. |
-| **requests** | CRUD solicitações, assign, status, cancel. Aplica regras de negócio. |
-| **messages** | Envia e lista mensagens. Valida permissão COMMENT. |
-| **history** | Serviço interno: toda mudança em request chama `HistoryService.log()`. |
-| **permissions** | Centraliza `can(user, action, request?)`. Guards usam isso. |
+| **auth** | `POST /auth/login` → JWT. `AuthGuard` global (`APP_GUARD`). |
+| **users** | Admin CRUD usuários em `/admin/users`. |
+| **roles** | Admin lista cargos em `/admin/roles`. |
+| **sectors** | Operacional: opções de serviço. Admin: CRUD em `/admin/sectors`. |
+| **sector-services** | Admin CRUD serviços do setor em `/admin/sectors/:sectorId/services`. |
+| **user-sector-membership** | Admin vínculos em `/admin/sectors/:sectorId/members`. |
+| **me** | Home do usuário: setores, chamados criados/observados, atribuídos. |
+| **requests** | Fluxo completo de solicitações. RBAC em `RequestPermissionsService`. Histórico e mensagens via módulos `request-history/` e `request-messages/`. Auto-conclusão SOLVED em `requests/schedules/auto-complete/`. |
 
-### 6.3 API do MVP
+### 6.3 API do MVP (prefixo global `/api`)
 
 ```
 # Auth
 POST   /auth/login
+GET    /auth/profile
 
-# Users (admin)
-POST   /users
-GET    /users
-GET    /users/:id
-PATCH  /users/:id
-PATCH  /users/:id/deactivate
+# Me (operacional)
+GET    /me/sectors
+GET    /me/requests
+GET    /me/requests/assigned
 
-# Sectors (admin)
-POST   /sectors
-GET    /sectors
-GET    /sectors/:id
-PATCH  /sectors/:id
+# Admin — requer isGlobalAdmin
+POST   /admin/users
+GET    /admin/users
+GET    /admin/users/:id
+PATCH  /admin/users/:id
+PATCH  /admin/users/:id/toggle-active
+PATCH  /admin/users/:id/reset-password
 
-# Memberships (admin)
-POST   /sectors/:sectorId/members        # { userId, role }
-DELETE /sectors/:sectorId/members/:userId
-GET    /sectors/:sectorId/members
+GET    /admin/roles
+GET    /admin/roles/:id
 
-# Requests
-POST   /requests                         # qualquer autenticado
-GET    /requests                         # filtrado por visibilidade
+POST   /admin/sectors
+GET    /admin/sectors
+GET    /admin/sectors/:id
+GET    /admin/sectors/:id/available-users
+PATCH  /admin/sectors/:id
+PATCH  /admin/sectors/:id/toggle-active
+
+POST   /admin/sectors/:sectorId/members
+GET    /admin/sectors/:sectorId/members
+GET    /admin/sectors/:sectorId/members/:id
+PATCH  /admin/sectors/:sectorId/members/:id
+DELETE /admin/sectors/:sectorId/members/:id
+
+POST   /admin/sectors/:sectorId/services
+GET    /admin/sectors/:sectorId/services
+GET    /admin/sectors/:sectorId/services/:id
+PATCH  /admin/sectors/:sectorId/services/:id
+PATCH  /admin/sectors/:sectorId/services/:id/toggle-active
+
+GET    /admin/requests/:id/history
+GET    /admin/settings/request-auto-complete
+PATCH  /admin/settings/request-auto-complete
+
+# Setores (operacional — autenticado)
+GET    /sectors/services/options
+
+# Solicitações por setor (operacional)
+GET    /sectors/:sectorId/requests
+GET    /sectors/:sectorId/assignee-options
+
+# Requests (operacional)
+POST   /requests
+GET    /requests
+GET    /requests/observer-options
 GET    /requests/:id
-PATCH  /requests/:id                     # editar
-PATCH  /requests/:id/assign              # { assigneeId }
-PATCH  /requests/:id/status              # { status }
+PATCH  /requests/:id
+PATCH  /requests/:id/status         # PENDING | IN_PROGRESS | SOLVED; admin reabre COMPLETED
+PATCH  /requests/:id/solution-review
+PATCH  /requests/:id/assign
+PATCH  /requests/:id/observers
 PATCH  /requests/:id/cancel
-GET    /requests/:id/permissions/me      # ações permitidas (para UI)
-
-# Messages
-POST   /requests/:id/messages            # { content }
-GET    /requests/:id/messages       # paginado: page, limit
-
-# History
-GET    /requests/:id/history
+PATCH  /requests/:id/archive
+GET    /requests/:id/messages
+POST   /requests/:id/messages
 ```
+
+Cada `RequestResponseDto` inclui `permissions` (canView, canEdit, canMessage, canArchive, canChangeStatus, canReviewSolution, canManageObservers) — não há rota separada `/permissions/me`. `canChangeStatus`: admin global inclusive em status bloqueados (ex. `COMPLETED`); demais papéis só enquanto não bloqueado.
 
 ### 6.4 Ordem de implementação
 
@@ -527,12 +588,11 @@ GET    /requests/:id/history
 
 ### 6.5 Testes mínimos exigidos
 
-**Unitários (`permission.service.spec.ts`):**
-- Solicitante vê e envia mensagem
-- Solicitante não edita, cancela nem muda status
+**Unitários (`requests.service.spec.ts`, `request-permissions.service.ts`):**
+- Solicitante vê e envia mensagem (quando permitido)
 - Manager atribui e cancela
 - Responsável muda status
-- Criador não pode ser assignee
+- Visibilidade por setor (manager, technician, criador, observador)
 
 **E2E (`requests.e2e-spec.ts`):**
 - Fluxo completo: criar → atribuir → mensagem → concluir
@@ -1132,10 +1192,10 @@ GET    /requests                    # listar (filtro por escopos do usuário)
 GET    /requests/:id                # detalhe (VIEW_DETAIL)
 PATCH  /requests/:id                # editar (EDIT)
 PATCH  /requests/:id/assign         # atribuir (ASSIGN / REASSIGN)
-PATCH  /requests/:id/status         # mudar status (CHANGE_STATUS)
+PATCH  /requests/:id/status         # PENDING | IN_PROGRESS | SOLVED; admin reabre COMPLETED
 POST   /requests/:id/messages       # enviar mensagem (COMMENT)
-GET    /requests/:id/messages       # listar mensagens
-GET    /requests/:id/history        # histórico completo da solicitação
+GET    /requests/:id/messages       # listar mensagens (paginado)
+GET    /admin/requests/:id/history  # histórico — somente admin global
 PATCH  /requests/:id/cancel         # cancelar (CANCEL)
 
 POST   /auth/register-with-code     # cadastro via código de convite
@@ -1204,7 +1264,7 @@ A UI usa isso para mostrar/ocultar botões — **nunca confiar só no frontend**
 7. **CRUD solicitações** — com guards + validação criador ≠ responsável
 8. **RequestMessages** — envio e listagem
 9. **Políticas configuráveis** — CRUD + validação + seed com template padrão
-10. **Endpoint `/permissions/me`** e `/requests/:id/history` para UI
+10. **Endpoint `/permissions/me`** e `/admin/requests/:id/history` (admin) para UI
 
 ## 26. Validações em ASSIGN (produto futuro)
 
