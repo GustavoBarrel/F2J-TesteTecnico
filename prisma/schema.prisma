@@ -29,8 +29,23 @@ model User {
   requestMessages        RequestMessage[]
   requestHistories       RequestHistory[]
   updatedAutoCompleteSettings RequestAutoCompleteSetting[]
+  passwordResetCodes     PasswordResetCode[]
 
   @@map("users")
+}
+
+model PasswordResetCode {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  codeHash  String    @map("code_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("password_reset_codes")
 }
 
 model Sector {

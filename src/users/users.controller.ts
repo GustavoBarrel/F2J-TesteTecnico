@@ -26,8 +26,6 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { ResetPasswordResponseDto } from './dto/reset-password-response.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @ApiTags('Admin: Usuários')
 @ApiBearerAuth()
@@ -87,18 +85,5 @@ export class UsersController {
   @ApiNotFoundResponse({ description: 'Usuário não encontrado' })
   toggleActive(@Param('id') id: string): Promise<UserResponseDto> {
     return this.usersService.toggleActive(id);
-  }
-
-  @Patch(':id/reset-password')
-  @ApiOperation({
-    summary: 'Redefinir senha do usuário',
-    description: 'Redefine a senha do usuário.',
-  })
-  @ApiOkResponse({ type: UserResponseDto })
-  @ApiNotFoundResponse({ description: 'Usuário não encontrado' })
-  resetPassword(
-    @Body() resetPasswordDto: ResetPasswordDto,
-  ): Promise<ResetPasswordResponseDto> {
-    return this.usersService.resetPassword(resetPasswordDto);
   }
 }

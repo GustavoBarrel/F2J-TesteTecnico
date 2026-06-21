@@ -1,0 +1,3 @@
+export const PASSWORD_RESET_CODE_LENGTH = 6;
+export const PASSWORD_RESET_CODE_EXPIRY_MS = 5 * 60 * 1000;
+export const PASSWORD_RESET_SALT_ROUNDS = 10;

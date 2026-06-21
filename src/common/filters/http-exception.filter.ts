@@ -5,13 +5,15 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
+import { appendApiDebugMeta } from '../utils/append-api-debug-meta';
 
 @Catch(HttpException)
 export class HttpExceptionFilter implements ExceptionFilter {
   catch(exception: HttpException, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
     const status = exception.getStatus();
     const exceptionResponse = exception.getResponse();
 
@@ -28,7 +30,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
             ...(exceptionResponse as Record<string, unknown>),
           };
 
-    response.status(status).json(body);
+    response
+      .status(status)
+      .json(appendApiDebugMeta(body, request, exception));
   }
 
   private formatError(status: number): string {

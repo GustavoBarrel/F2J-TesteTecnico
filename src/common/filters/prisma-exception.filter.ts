@@ -4,8 +4,9 @@ import {
   ExceptionFilter,
   HttpStatus,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { Prisma } from '../../../generated/prisma/client';
+import { appendApiDebugMeta } from '../utils/append-api-debug-meta';
 
 type PrismaErrorResponseBody = {
   statusCode: HttpStatus;
@@ -19,9 +20,17 @@ export class PrismaExceptionFilter implements ExceptionFilter {
   catch(exception: Prisma.PrismaClientKnownRequestError, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
     const body = this.getResponseBody(exception);
 
-    response.status(body.statusCode).json(body);
+    response
+      .status(body.statusCode)
+      .json(
+        appendApiDebugMeta(body, request, exception, {
+          prismaCode: exception.code,
+          prismaMeta: exception.meta,
+        }),
+      );
   }
 
   private getResponseBody(
